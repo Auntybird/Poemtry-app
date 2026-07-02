@@ -82,6 +82,7 @@ class _SpeakScreenState extends State<SpeakScreen> {
         transcript: result.transcript,
         poem: result.poem,
         explanation: result.explanation,
+        background: result.background, // Added field
         type: 'voice',
       );
       await _storage.addHistoryEntry(entry);

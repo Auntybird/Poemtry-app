@@ -6,6 +6,7 @@ class HistoryEntry {
   final String transcript;
   final String poem;
   final String explanation;
+  final String background;
   final String type; // 'voice' or 'written'
   final bool isFavorite;
 
@@ -17,6 +18,7 @@ class HistoryEntry {
     required this.transcript,
     required this.poem,
     required this.explanation,
+    this.background = '',
     this.type = 'voice',
     this.isFavorite = false,
   });
@@ -29,6 +31,7 @@ class HistoryEntry {
         transcript: transcript,
         poem: poem,
         explanation: explanation,
+        background: background,
         type: type,
         isFavorite: isFavorite ?? this.isFavorite,
       );
@@ -41,6 +44,7 @@ class HistoryEntry {
         'transcript': transcript,
         'poem': poem,
         'explanation': explanation,
+        'background': background,
         'type': type,
         'isFavorite': isFavorite,
       };
@@ -53,6 +57,7 @@ class HistoryEntry {
         transcript: json['transcript'] as String,
         poem: json['poem'] as String,
         explanation: json['explanation'] as String,
+        background: json['background'] as String? ?? '',
         type: json['type'] as String? ?? 'voice',
         isFavorite: json['isFavorite'] as bool? ?? false,
       );

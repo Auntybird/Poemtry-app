@@ -67,10 +67,11 @@ class _PoemScreenState extends State<PoemScreen> {
                 children: [
                   _PersonaTag(name: entry.personaName, english: entry.personaEnglishName),
                   const SizedBox(width: 8),
-                  if (entry.type == 'written')
-                    Icon(Icons.edit_note_rounded, size: 16, color: AppColors.paper.withOpacity(0.4))
-                  else
-                    Icon(Icons.mic_rounded, size: 16, color: AppColors.paper.withOpacity(0.4)),
+                  Icon(
+                    entry.type == 'written' ? Icons.edit_note_rounded : Icons.mic_rounded,
+                    size: 16,
+                    color: AppColors.paper.withOpacity(0.4),
+                  ),
                 ],
               ),
               const SizedBox(height: 28),
@@ -87,26 +88,68 @@ class _PoemScreenState extends State<PoemScreen> {
               const SizedBox(height: 32),
               Container(height: 1, color: AppColors.inkBorder),
               const SizedBox(height: 20),
-              Text(
-                entry.type == 'written' ? 'You wrote' : 'You said',
-                style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                entry.transcript,
-                style: TextStyle(color: AppColors.paper.withOpacity(0.75), fontSize: 15, fontStyle: FontStyle.italic, height: 1.5),
-              ),
-              const SizedBox(height: 28),
-              Text(
-                entry.type == 'written' ? 'Guidance' : 'Meaning',
-                style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
-              ),
-              const SizedBox(height: 8),
-              Text(entry.explanation, style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.6)),
+
+              if (entry.type == 'voice') ...[
+                Text('You said', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
+                const SizedBox(height: 8),
+                Text(
+                  entry.transcript,
+                  style: TextStyle(color: AppColors.paper.withOpacity(0.75), fontSize: 15, fontStyle: FontStyle.italic, height: 1.5),
+                ),
+                const SizedBox(height: 28),
+              ],
+
+              if (entry.explanation.isNotEmpty) ...[
+                Text(
+                  entry.type == 'written' ? 'Guidance received' : 'Meaning',
+                  style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
+                ),
+                const SizedBox(height: 8),
+                Text(entry.explanation, style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.6)),
+                const SizedBox(height: 28),
+              ],
+
+              if (entry.background.isNotEmpty) _ReferenceSection(text: entry.background),
+
               const SizedBox(height: 40),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReferenceSection extends StatelessWidget {
+  final String text;
+
+  const _ReferenceSection({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.violet.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.violet.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.menu_book_outlined, size: 16, color: AppColors.violet.withOpacity(0.9)),
+              const SizedBox(width: 6),
+              Text(
+                'References & Background',
+                style: TextStyle(color: AppColors.violet.withOpacity(0.9), fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(text, style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: 13.5, height: 1.55)),
+        ],
       ),
     );
   }

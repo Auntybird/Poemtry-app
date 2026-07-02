@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/history_entry.dart';
+import '../models/writing_draft.dart';
 
 class StorageService {
   static const _apiKeyPref = 'gemini_api_key';
   static const _historyPref = 'poem_history';
+  static const _draftPref = 'current_draft';
 
   Future<void> saveApiKey(String key) async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,15 +29,6 @@ class StorageService {
     final list = await getHistory();
     list.insert(0, entry);
     await _saveList(list);
-  }
-
-  Future<void> updateHistoryEntry(HistoryEntry updated) async {
-    final list = await getHistory();
-    final idx = list.indexWhere((e) => e.id == updated.id);
-    if (idx != -1) {
-      list[idx] = updated;
-      await _saveList(list);
-    }
   }
 
   Future<void> toggleFavorite(String id) async {
@@ -65,5 +58,24 @@ class StorageService {
   Future<void> _saveList(List<HistoryEntry> list) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_historyPref, jsonEncode(list.map((e) => e.toJson()).toList()));
+  }
+
+  // --- Notebook draft (single active draft) ---
+
+  Future<void> saveDraft(WritingDraft draft) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftPref, jsonEncode(draft.toJson()));
+  }
+
+  Future<WritingDraft?> getDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftPref);
+    if (raw == null || raw.isEmpty) return null;
+    return WritingDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  }
+
+  Future<void> clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftPref);
   }
 }

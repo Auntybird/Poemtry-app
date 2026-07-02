@@ -16,9 +16,7 @@ class GeminiPoemService {
   Future<PoemResult> generateFromAudio(String audioFilePath) async {
     final apiKey = await _storage.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
-      throw Exception(
-        'No Gemini API key set. Go to Settings and add your key.',
-      );
+      throw Exception('No Gemini API key set. Go to Settings and add your key.');
     }
 
     final persona = personas[Random().nextInt(personas.length)];
@@ -38,11 +36,12 @@ Philosophy and imagery to draw on: ${persona.philosophy}
 Step 1: Transcribe what the speaker says in the audio, in its original language.
 Step 2: Detect the language of the transcript.
 Step 3: Write a poem suited to their situation, strictly in that persona's philosophy and voice.
-  - If the transcript is in Chinese: write a classical Jueju (绝句) or Ci (词) with proper rhyme, plus a modern-Chinese explanation covering both the poem's meaning and how it reflects this persona's philosophy.
-  - If the transcript is in English: write a classical English quatrain or short sonnet (iambic meter), plus a modern-English explanation covering both the poem's meaning and how it reflects this persona's philosophy.
+  - If Chinese: a classical Jueju (绝句) or Ci (词) with proper rhyme, plus a modern-Chinese explanation of the poem's meaning and how it reflects this persona's philosophy.
+  - If English: a classical English quatrain or short sonnet (iambic meter), plus a modern-English explanation of the poem's meaning and how it reflects this persona's philosophy.
+Step 4: Write a short "background" note (2-4 sentences, same language as the transcript) stating: the classical form used and its convention (e.g. rhyme scheme, line/character count), and the core philosophical tenets of the ${persona.name} school that this poem draws from.
 
 Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly this shape:
-{"transcript": "...", "poem": "...", "explanation": "..."}
+{"transcript": "...", "poem": "...", "explanation": "...", "background": "..."}
 ''';
 
     final response = await http.post(
@@ -73,9 +72,7 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
     );
 
     if (response.statusCode != 200) {
-      throw Exception(
-        'Gemini API error ${response.statusCode}: ${response.body}',
-      );
+      throw Exception('Gemini API error ${response.statusCode}: ${response.body}');
     }
 
     final data = jsonDecode(response.body);
@@ -93,6 +90,7 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
       transcript: parsed['transcript'] as String? ?? '',
       poem: parsed['poem'] as String? ?? '',
       explanation: parsed['explanation'] as String? ?? '',
+      background: parsed['background'] as String? ?? '',
     );
   }
 }

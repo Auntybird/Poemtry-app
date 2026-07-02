@@ -4,6 +4,7 @@ class PoemResult {
   final String transcript;
   final String poem;
   final String explanation;
+  final String background;
 
   const PoemResult({
     required this.personaName,
@@ -11,5 +12,6 @@ class PoemResult {
     required this.transcript,
     required this.poem,
     required this.explanation,
+    this.background = '',
   });
 }

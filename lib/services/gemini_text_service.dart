@@ -5,11 +5,11 @@ import 'package:http/http.dart' as http;
 import '../models/persona.dart';
 import 'storage_service.dart';
 
-class PoemGuidanceResult {
+class WritingGuidance {
   final String guidance;
-  final String responsePoem;
+  final String background;
 
-  const PoemGuidanceResult({required this.guidance, required this.responsePoem});
+  const WritingGuidance({required this.guidance, required this.background});
 }
 
 class GeminiTextService {
@@ -17,7 +17,7 @@ class GeminiTextService {
 
   final StorageService _storage = StorageService();
 
-  Future<PoemGuidanceResult> guide(String userText, Persona persona) async {
+  Future<WritingGuidance> getGuidance(String userText, Persona persona) async {
     final apiKey = await _storage.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw Exception('No Gemini API key set. Go to Settings and add your key.');
@@ -29,15 +29,19 @@ class GeminiTextService {
     );
 
     final systemPrompt = '''
-You are a wise mentor from the ${persona.name} (${persona.englishName}) school of Chinese thought, reviewing a piece of writing (a poem, reflection, or personal ideology) someone has written themselves.
-Philosophy and imagery to draw on: ${persona.philosophy}
+You are a writing mentor from the ${persona.name} (${persona.englishName}) school of Chinese thought, coaching someone drafting their own poem or reflection.
+Philosophy and imagery available to this school: ${persona.philosophy}
 
-Detect the language of their writing.
-Step 1: Offer warm, thoughtful guidance from this persona's philosophical perspective — what resonates, what could deepen, how this school of thought would approach their theme.
-Step 2: Write a short response poem, in the same language as their writing, in this persona's classical style, that answers or elevates what they wrote.
+Detect the language of their draft.
+
+CRITICAL RULE: Do NOT write the poem for them. Do NOT include any finished poem, verse, or line you composed yourself anywhere in your response. This is a coaching exercise — every line of the final piece must be written by the person themselves.
+
+Step 1 (guidance): Give specific, actionable coaching in 3-5 sentences, in the same language as their draft: what's working, where the imagery or structure could align more closely with this persona's philosophy, and one or two concrete techniques to try. Optionally end with one guiding question. Never supply replacement lines.
+
+Step 2 (background): In 2-4 sentences, same language as their draft, explain: (a) the classical form convention relevant to their language — for Chinese, e.g. Jueju's 4-line/7-character structure and where the rhyme falls; for English, e.g. iambic pentameter or a quatrain's rhyme scheme — and (b) the core tenets and imagery vocabulary of the ${persona.name} school they can draw from. This is reference material only.
 
 Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly this shape:
-{"guidance": "...", "responsePoem": "..."}
+{"guidance": "...", "background": "..."}
 ''';
 
     final response = await http.post(
@@ -73,9 +77,9 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
     final text = candidates[0]['content']['parts'][0]['text'] as String;
     final parsed = jsonDecode(text) as Map<String, dynamic>;
 
-    return PoemGuidanceResult(
+    return WritingGuidance(
       guidance: parsed['guidance'] as String? ?? '',
-      responsePoem: parsed['responsePoem'] as String? ?? '',
+      background: parsed['background'] as String? ?? '',
     );
   }
 }
