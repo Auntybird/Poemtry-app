@@ -152,20 +152,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
       );
 
-  Widget _buildStatsRow() {
+Widget _buildStatsRow() {
     final streak = _currentStreak();
-    final personaCounts = _personaCounts();
-    final topPersona = personaCounts.entries.isEmpty
-        ? '—'
-        : (personaCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key;
+    final favorites = _entries.where((e) => e.isFavorite).length;
+    final written = _entries.where((e) => e.type == 'written').length;
 
-    return Row(
+    return Column(
       children: [
-        Expanded(child: _StatCard(label: 'Poems', value: '${_entries.length}', color: AppColors.gold)),
-        const SizedBox(width: 12),
-        Expanded(child: _StatCard(label: 'Streak', value: '$streak d', color: AppColors.seal)),
-        const SizedBox(width: 12),
-        Expanded(child: _StatCard(label: 'Top school', value: topPersona, color: AppColors.jade, small: true)),
+        Row(
+          children: [
+            Expanded(child: _StatCard(label: 'Poems', value: '${_entries.length}', color: AppColors.gold)),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard(label: 'Streak', value: '$streak d', color: AppColors.seal)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _StatCard(label: 'Favorites', value: '$favorites', color: AppColors.jade)),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard(label: 'Written', value: '$written', color: AppColors.violet)),
+          ],
+        ),
       ],
     );
   }
@@ -327,9 +335,8 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  final bool small;
 
-  const _StatCard({required this.label, required this.value, required this.color, this.small = false});
+  const _StatCard({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -347,7 +354,7 @@ class _StatCard extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: color, fontSize: small ? 15 : 20, fontWeight: FontWeight.w700),
+            style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(label, style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 11)),

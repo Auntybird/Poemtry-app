@@ -24,11 +24,27 @@ class StorageService {
   }
 
   Future<void> addHistoryEntry(HistoryEntry entry) async {
-    final prefs = await SharedPreferences.getInstance();
     final list = await getHistory();
-    list.insert(0, entry); // newest first
-    final jsonList = list.map((e) => e.toJson()).toList();
-    await prefs.setString(_historyPref, jsonEncode(jsonList));
+    list.insert(0, entry);
+    await _saveList(list);
+  }
+
+  Future<void> updateHistoryEntry(HistoryEntry updated) async {
+    final list = await getHistory();
+    final idx = list.indexWhere((e) => e.id == updated.id);
+    if (idx != -1) {
+      list[idx] = updated;
+      await _saveList(list);
+    }
+  }
+
+  Future<void> toggleFavorite(String id) async {
+    final list = await getHistory();
+    final idx = list.indexWhere((e) => e.id == id);
+    if (idx != -1) {
+      list[idx] = list[idx].copyWith(isFavorite: !list[idx].isFavorite);
+      await _saveList(list);
+    }
   }
 
   Future<List<HistoryEntry>> getHistory() async {
@@ -44,5 +60,10 @@ class StorageService {
   Future<void> clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_historyPref);
+  }
+
+  Future<void> _saveList(List<HistoryEntry> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_historyPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 }

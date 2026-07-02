@@ -1,273 +1,213 @@
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:record/record.dart';
 
-import '../models/history_entry.dart';
-import '../services/gemini_service.dart';
-import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import 'analytics_screen.dart';
 import 'history_screen.dart';
-import 'poem_screen.dart';
 import 'settings_screen.dart';
+import 'speak_screen.dart';
+import 'write_screen.dart';
 
-enum _AppState { idle, recording, processing }
-
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  final _recorder = AudioRecorder();
-  final _geminiService = GeminiPoemService();
-  final _storage = StorageService();
-
-  _AppState _state = _AppState.idle;
-  String? _recordingPath;
-
-  @override
-  void dispose() {
-    _recorder.dispose();
-    super.dispose();
-  }
-
-  Future<void> _onMicTapped() async {
-    switch (_state) {
-      case _AppState.idle:
-        await _startRecording();
-      case _AppState.recording:
-        await _stopAndGenerate();
-      case _AppState.processing:
-        break;
-    }
-  }
-
-  Future<void> _startRecording() async {
-    final status = await Permission.microphone.request();
-    if (!status.isGranted) {
-      _showError('Microphone permission is required to record.');
-      return;
-    }
-
-    final dir = await getTemporaryDirectory();
-    final path =
-        '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-    await _recorder.start(const RecordConfig(), path: path);
-
-    setState(() {
-      _state = _AppState.recording;
-      _recordingPath = path;
-    });
-  }
-
-  Future<void> _stopAndGenerate() async {
-    final path = await _recorder.stop();
-    if (path == null && _recordingPath == null) {
-      _showError('Recording failed. Please try again.');
-      setState(() => _state = _AppState.idle);
-      return;
-    }
-
-    setState(() => _state = _AppState.processing);
-
-    try {
-      final result = await _geminiService.generateFromAudio(
-        path ?? _recordingPath!,
-      );
-
-      await _storage.addHistoryEntry(
-        HistoryEntry(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          timestamp: DateTime.now(),
-          personaName: result.personaName,
-          personaEnglishName: result.personaEnglishName,
-          transcript: result.transcript,
-          poem: result.poem,
-          explanation: result.explanation,
-        ),
-      );
-
-      if (!mounted) return;
-      setState(() => _state = _AppState.idle);
-
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => PoemScreen(result: result)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _state = _AppState.idle);
-      _showError('Something went wrong: $e');
-    }
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.inkSurfaceLight,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.ink,
-      appBar: AppBar(
-        actions: [
-          _TopIconButton(
-            icon: Icons.bar_chart_rounded,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-            ),
-          ),
-          _TopIconButton(
-            icon: Icons.history_rounded,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const HistoryScreen()),
-            ),
-          ),
-          _TopIconButton(
-            icon: Icons.settings_rounded,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                '诸子百家',
-                style: TextStyle(
-                  color: AppColors.paper,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 6,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(width: 36, height: 1, color: AppColors.gold.withOpacity(0.6)),
-              const SizedBox(height: 14),
-              Text(
-                _statusLabel(),
-                style: TextStyle(
-                  color: AppColors.paper.withOpacity(0.55),
-                  fontSize: 14,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 70),
-              Stack(
-                alignment: Alignment.center,
+        child: Stack(
+          children: [
+            Positioned(
+              top: -40,
+              right: -60,
+              child: AmbientGlow(color: AppColors.seal, size: 260),
+            ),
+            Positioned(
+              bottom: 100,
+              left: -80,
+              child: AmbientGlow(color: AppColors.violet, size: 240),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 230,
-                    height: 230,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [_micColor().withOpacity(0.16), Colors.transparent],
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      icon: Icon(Icons.settings_rounded, color: AppColors.paper.withOpacity(0.6)),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: _onMicTapped,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      width: 116,
-                      height: 116,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _micColor(),
-                        border: Border.all(color: AppColors.paper.withOpacity(0.08)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _micColor().withOpacity(0.45),
-                            blurRadius: _state == _AppState.recording ? 34 : 14,
-                            spreadRadius: _state == _AppState.recording ? 6 : 0,
+                  const SizedBox(height: 12),
+                  const Center(child: SealBadge()),
+                  const SizedBox(height: 20),
+                  const Text(
+                    '诗魂',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.paper,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '问道九家 · 落笔成诗',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.gold.withOpacity(0.85),
+                      fontSize: 13,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 44),
+                  _ActionCard(
+                    icon: Icons.mic_rounded,
+                    title: '开口而言',
+                    subtitle: 'Speak your mind, let a philosophy answer',
+                    accent: AppColors.seal,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SpeakScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _ActionCard(
+                    icon: Icons.edit_note_rounded,
+                    title: '落笔为诗',
+                    subtitle: 'Write your own poem or thought, get guidance',
+                    accent: AppColors.gold,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const WriteScreen()),
+                    ),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PillButton(
+                          icon: Icons.history_rounded,
+                          label: 'History',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const HistoryScreen()),
                           ),
-                        ],
+                        ),
                       ),
-                      child: Center(
-                        child: _state == _AppState.processing
-                            ? const SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                  color: AppColors.paper,
-                                  strokeWidth: 2.4,
-                                ),
-                              )
-                            : Icon(
-                                _state == _AppState.recording
-                                    ? Icons.stop_rounded
-                                    : Icons.mic_rounded,
-                                color: AppColors.paper,
-                                size: 44,
-                              ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _PillButton(
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Analytics',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.inkSurface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: accent.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withOpacity(0.16),
+                ),
+                child: Icon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(color: AppColors.paper, fontSize: 17, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(subtitle,
+                        style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 12.5)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.paper.withOpacity(0.35)),
             ],
           ),
         ),
       ),
     );
   }
-
-  String _statusLabel() {
-    switch (_state) {
-      case _AppState.idle:
-        return 'Tap to speak your situation';
-      case _AppState.recording:
-        return 'Listening... tap to stop';
-      case _AppState.processing:
-        return 'Composing your poem...';
-    }
-  }
-
-  Color _micColor() {
-    switch (_state) {
-      case _AppState.idle:
-        return AppColors.inkSurfaceLight;
-      case _AppState.recording:
-        return AppColors.seal;
-      case _AppState.processing:
-        return AppColors.gold;
-    }
-  }
 }
 
-class _TopIconButton extends StatelessWidget {
+class _PillButton extends StatelessWidget {
   final IconData icon;
+  final String label;
   final VoidCallback onTap;
 
-  const _TopIconButton({required this.icon, required this.onTap});
+  const _PillButton({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.inkSurface),
-          child: Icon(icon, color: AppColors.paper.withOpacity(0.75), size: 20),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.inkSurfaceLight,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: AppColors.paper.withOpacity(0.75), size: 20),
+              const SizedBox(height: 6),
+              Text(label, style: TextStyle(color: AppColors.paper.withOpacity(0.7), fontSize: 12)),
+            ],
+          ),
         ),
       ),
     );

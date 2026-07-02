@@ -13,7 +13,7 @@ class PoemApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '诸子百家 · Voice Poem',
+      title: '诗魂 · Poem Soul',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: const HomeScreen(),

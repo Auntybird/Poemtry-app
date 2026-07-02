@@ -10,10 +10,10 @@ class AppColors {
 
   static const paper = Color(0xFFF3EEE4);
 
-  static const seal = Color(0xFFB6472F);   // brand / recording
-  static const gold = Color(0xFFD8B26B);   // highlight / processing
-  static const jade = Color(0xFF6FA787);   // "available" status
-  static const crimson = Color(0xFFC0392B); // "unavailable" status
+  static const seal = Color(0xFFB6472F);
+  static const gold = Color(0xFFD8B26B);
+  static const jade = Color(0xFF6FA787);
+  static const crimson = Color(0xFFC0392B);
   static const violet = Color(0xFF8E7CC3);
 
   static const chartPalette = [
@@ -42,6 +42,72 @@ class AppTheme {
         iconTheme: IconThemeData(color: AppColors.paper),
       ),
       dividerColor: AppColors.inkBorder,
+    );
+  }
+}
+
+/// A stylized seal-stamp badge used as the app's hero mark.
+class SealBadge extends StatelessWidget {
+  final double size;
+  final String glyph;
+
+  const SealBadge({super.key, this.size = 84, this.glyph = '詩'});
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: -0.035,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size * 0.16),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.seal, Color(0xFF8C331F)],
+          ),
+          border: Border.all(color: AppColors.gold.withOpacity(0.7), width: 1.6),
+          boxShadow: [
+            BoxShadow(color: AppColors.seal.withOpacity(0.4), blurRadius: 24, spreadRadius: 1),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            glyph,
+            style: TextStyle(
+              color: AppColors.paper,
+              fontSize: size * 0.46,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Faint radial glow used behind hero sections for depth.
+class AmbientGlow extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const AmbientGlow({super.key, this.color = AppColors.gold, this.size = 280});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color.withOpacity(0.14), Colors.transparent],
+          ),
+        ),
+      ),
     );
   }
 }
