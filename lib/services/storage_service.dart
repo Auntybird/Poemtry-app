@@ -7,9 +7,9 @@ import '../models/writing_draft.dart';
 
 class StorageService {
   static const _apiKeyPref = 'gemini_api_key';
-  static const _secondaryConfigPref = 'secondary_config'; // 💡 Key for your secondary optional setting
+  static const _secondaryConfigPref = 'secondary_config';
   static const _historyPref = 'poem_history';
-  static const _draftPref = 'current_draft';
+  static const _draftsPref = 'writing_drafts_list'; // 💡 Changed to list key
 
   // --- Gemini API Key ---
 
@@ -28,7 +28,7 @@ class StorageService {
     await prefs.remove(_apiKeyPref);
   }
 
-  // --- Secondary Optional Configuration ---
+  // --- Secondary Configuration ---
 
   Future<void> saveSecondaryConfig(String config) async {
     final prefs = await SharedPreferences.getInstance();
@@ -45,12 +45,22 @@ class StorageService {
     await prefs.remove(_secondaryConfigPref);
   }
 
-  // --- History ---
+  // --- History (Completed Items) ---
 
   Future<void> addHistoryEntry(HistoryEntry entry) async {
     final list = await getHistory();
     list.insert(0, entry);
     await _saveList(list);
+  }
+
+  // 💡 NEW METHOD: Allows updating an already existing history item anytime
+  Future<void> updateHistoryEntry(HistoryEntry entry) async {
+    final list = await getHistory();
+    final idx = list.indexWhere((e) => e.id == entry.id);
+    if (idx != -1) {
+      list[idx] = entry;
+      await _saveList(list);
+    }
   }
 
   Future<void> toggleFavorite(String id) async {
@@ -60,6 +70,12 @@ class StorageService {
       list[idx] = list[idx].copyWith(isFavorite: !list[idx].isFavorite);
       await _saveList(list);
     }
+  }
+
+  Future<void> deleteHistoryEntry(String id) async {
+    final list = await getHistory();
+    list.removeWhere((e) => e.id == id);
+    await _saveList(list);
   }
 
   Future<List<HistoryEntry>> getHistory() async {
@@ -82,22 +98,37 @@ class StorageService {
     await prefs.setString(_historyPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 
-  // --- Notebook draft (single active draft) ---
+  // --- Multiple Notebook Drafts Management ---
 
+  // 💡 Fetches all saved active drafts sorted by latest updated
+  Future<List<WritingDraft>> getDrafts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftsPref);
+    if (raw == null || raw.isEmpty) return [];
+    final decoded = jsonDecode(raw) as List;
+    final drafts = decoded.map((e) => WritingDraft.fromJson(e as Map<String, dynamic>)).toList();
+    drafts.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return drafts;
+  }
+
+  // 💡 Saves or Updates a draft within the collection
   Future<void> saveDraft(WritingDraft draft) async {
+    final list = await getDrafts();
+    final idx = list.indexWhere((d) => d.id == draft.id);
+    if (idx != -1) {
+      list[idx] = draft;
+    } else {
+      list.insert(0, draft);
+    }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_draftPref, jsonEncode(draft.toJson()));
+    await prefs.setString(_draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 
-  Future<WritingDraft?> getDraft() async {
+  // 💡 Removes a single specific draft
+  Future<void> deleteDraft(String id) async {
+    final list = await getDrafts();
+    list.removeWhere((d) => d.id == id);
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_draftPref);
-    if (raw == null || raw.isEmpty) return null;
-    return WritingDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-  }
-
-  Future<void> clearDraft() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_draftPref);
+    await prefs.setString(_draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 }

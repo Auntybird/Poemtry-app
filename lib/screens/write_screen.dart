@@ -11,7 +11,10 @@ import '../theme/app_theme.dart';
 import 'poem_screen.dart';
 
 class WriteScreen extends StatefulWidget {
-  const WriteScreen({super.key});
+  final WritingDraft? existingDraft;
+  final HistoryEntry? existingEntry;
+
+  const WriteScreen({super.key, this.existingDraft, this.existingEntry});
 
   @override
   State<WriteScreen> createState() => _WriteScreenState();
@@ -21,6 +24,9 @@ class _WriteScreenState extends State<WriteScreen> {
   final _controller = TextEditingController();
   final _service = GeminiTextService();
   final _storage = StorageService();
+
+  String _currentDraftId = DateTime.now().millisecondsSinceEpoch.toString();
+  bool _isEditingCompletedEntry = false;
 
   Persona _selectedPersona = personas.first;
   bool _loadingGuidance = false;
@@ -40,15 +46,42 @@ class _WriteScreenState extends State<WriteScreen> {
   }
 
   Future<void> _restoreDraft() async {
-    final draft = await _storage.getDraft();
-    if (draft != null) {
-      _controller.text = draft.text;
+    if (widget.existingEntry != null) {
+      _isEditingCompletedEntry = true;
+      _currentDraftId = widget.existingEntry!.id;
+      _controller.text = widget.existingEntry!.poem;
       _selectedPersona = personas.firstWhere(
-        (p) => p.name == draft.personaName,
+        (p) => p.name == widget.existingEntry!.personaName,
         orElse: () => personas.first,
       );
-      _guidance = draft.guidance;
-      _background = draft.background;
+      _guidance = widget.existingEntry!.explanation;
+      _background = widget.existingEntry!.background;
+    } else if (widget.existingDraft != null) {
+      _isEditingCompletedEntry = false;
+      _currentDraftId = widget.existingDraft!.id;
+      _controller.text = widget.existingDraft!.text;
+      _selectedPersona = personas.firstWhere(
+        (p) => p.name == widget.existingDraft!.personaName,
+        orElse: () => personas.first,
+      );
+      _guidance = widget.existingDraft!.guidance;
+      _background = widget.existingDraft!.background;
+    } else {
+      _isEditingCompletedEntry = false;
+      final drafts = await _storage.getDrafts();
+      if (drafts.isNotEmpty) {
+        final draft = drafts.first;
+        _currentDraftId = draft.id;
+        _controller.text = draft.text;
+        _selectedPersona = personas.firstWhere(
+          (p) => p.name == draft.personaName,
+          orElse: () => personas.first,
+        );
+        _guidance = draft.guidance;
+        _background = draft.background;
+      } else {
+        _currentDraftId = DateTime.now().millisecondsSinceEpoch.toString();
+      }
     }
     setState(() => _restoringDraft = false);
   }
@@ -60,19 +93,37 @@ class _WriteScreenState extends State<WriteScreen> {
 
   Future<void> _persistDraft() async {
     if (_controller.text.trim().isEmpty && _guidance == null) return;
-    await _storage.saveDraft(
-      WritingDraft(
+
+    if (_isEditingCompletedEntry && widget.existingEntry != null) {
+      final updatedEntry = HistoryEntry(
+        id: _currentDraftId,
+        timestamp: widget.existingEntry!.timestamp,
         personaName: _selectedPersona.name,
         personaEnglishName: _selectedPersona.englishName,
-        text: _controller.text,
-        guidance: _guidance,
-        background: _background,
-        updatedAt: DateTime.now(),
-      ),
-    );
+        transcript: widget.existingEntry!.transcript,
+        poem: _controller.text,
+        explanation: _guidance ?? '',
+        background: _background ?? '',
+        type: widget.existingEntry!.type,
+        isFavorite: widget.existingEntry!.isFavorite,
+      );
+      await _storage.updateHistoryEntry(updatedEntry);
+    } else {
+      await _storage.saveDraft(
+        WritingDraft(
+          id: _currentDraftId,
+          personaName: _selectedPersona.name,
+          personaEnglishName: _selectedPersona.englishName,
+          text: _controller.text,
+          guidance: _guidance,
+          background: _background,
+          updatedAt: DateTime.now(),
+        ),
+      );
+    }
     if (!mounted) return;
     setState(() => _justSaved = true);
-    Future.delayed(const Duration(seconds: 1, milliseconds: 200), () {
+    Future.delayed(const Duration(seconds: 1), () {
       if (mounted) setState(() => _justSaved = false);
     });
   }
@@ -109,20 +160,36 @@ class _WriteScreenState extends State<WriteScreen> {
 
     setState(() => _completing = true);
 
-    final entry = HistoryEntry(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      timestamp: DateTime.now(),
-      personaName: _selectedPersona.name,
-      personaEnglishName: _selectedPersona.englishName,
-      transcript: text,
-      poem: text,
-      explanation: _guidance ?? '',
-      background: _background ?? '',
-      type: 'written',
-    );
-
-    await _storage.addHistoryEntry(entry);
-    await _storage.clearDraft();
+    HistoryEntry entry;
+    if (_isEditingCompletedEntry && widget.existingEntry != null) {
+      entry = HistoryEntry(
+        id: _currentDraftId,
+        timestamp: widget.existingEntry!.timestamp,
+        personaName: _selectedPersona.name,
+        personaEnglishName: _selectedPersona.englishName,
+        transcript: widget.existingEntry!.transcript,
+        poem: text,
+        explanation: _guidance ?? '',
+        background: _background ?? '',
+        type: widget.existingEntry!.type,
+        isFavorite: widget.existingEntry!.isFavorite,
+      );
+      await _storage.updateHistoryEntry(entry);
+    } else {
+      entry = HistoryEntry(
+        id: _currentDraftId,
+        timestamp: DateTime.now(),
+        personaName: _selectedPersona.name,
+        personaEnglishName: _selectedPersona.englishName,
+        transcript: text,
+        poem: text,
+        explanation: _guidance ?? '',
+        background: _background ?? '',
+        type: 'written',
+      );
+      await _storage.addHistoryEntry(entry);
+      await _storage.deleteDraft(_currentDraftId);
+    }
 
     if (!mounted) return;
     setState(() => _completing = false);
@@ -132,9 +199,15 @@ class _WriteScreenState extends State<WriteScreen> {
       MaterialPageRoute(builder: (_) => PoemScreen(entry: entry)),
     );
 
-    if (!mounted) return;
+    _startNewDraftWorkspace();
+  }
+
+  void _startNewDraftWorkspace() {
+    _controller.removeListener(_onTextChanged);
     _controller.clear();
     setState(() {
+      _currentDraftId = DateTime.now().millisecondsSinceEpoch.toString();
+      _isEditingCompletedEntry = false;
       _guidance = null;
       _background = null;
       _error = null;
@@ -142,36 +215,78 @@ class _WriteScreenState extends State<WriteScreen> {
     _controller.addListener(_onTextChanged);
   }
 
-  Future<void> _startNewDraft() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.inkSurface,
-        title: const Text('Start a new draft?',
-            style: TextStyle(color: AppColors.paper)),
-        content: Text(
-          'This clears your current unfinished notebook page. It has not been marked complete.',
-          style: TextStyle(color: AppColors.paper.withOpacity(0.7)),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Clear')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+  Future<void> _showDraftsManager() async {
+    final drafts = await _storage.getDrafts();
+    if (!mounted) return;
 
-    await _storage.clearDraft();
-    _controller.clear();
-    setState(() {
-      _guidance = null;
-      _background = null;
-      _error = null;
-    });
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.inkSurface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppBar(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    title: const Text('Saved Notebook Drafts', style: TextStyle(fontSize: 15)),
+                    automaticallyImplyLeading: false,
+                    actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))],
+                  ),
+                  if (drafts.isEmpty)
+                    const Padding(padding: EdgeInsets.all(40), child: Text('No active drafts.', style: TextStyle(color: Colors.grey)))
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: drafts.length,
+                        itemBuilder: (context, index) {
+                          final d = drafts[index];
+                          final isCurrent = d.id == _currentDraftId && !_isEditingCompletedEntry;
+                          return ListTile(
+                            title: Text(
+                              d.text.trim().isEmpty ? '(Empty Page)' : d.text,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: isCurrent ? AppColors.gold : AppColors.paper),
+                            ),
+                            subtitle: Text('${d.personaName} · ${d.updatedAt.month}/${d.updatedAt.day}', style: const TextStyle(fontSize: 12)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: AppColors.crimson),
+                              onPressed: () async {
+                                await _storage.deleteDraft(d.id);
+                                drafts.removeWhere((element) => element.id == d.id);
+                                setModalState(() {});
+                                if (isCurrent) _startNewDraftWorkspace();
+                              },
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _controller.removeListener(_onTextChanged);
+                              setState(() {
+                                _isEditingCompletedEntry = false;
+                                _currentDraftId = d.id;
+                                _controller.text = d.text;
+                                _selectedPersona = personas.firstWhere((p) => p.name == d.personaName, orElse: () => personas.first);
+                                _guidance = d.guidance;
+                                _background = d.background;
+                              });
+                              _controller.addListener(_onTextChanged);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -196,25 +311,24 @@ class _WriteScreenState extends State<WriteScreen> {
     return Scaffold(
       backgroundColor: AppColors.ink,
       appBar: AppBar(
-        title: const Text('落笔为诗'),
+        title: Text(_isEditingCompletedEntry ? 'Editing Poem' : '落笔为诗'),
         actions: [
           AnimatedOpacity(
             opacity: _justSaved ? 1 : 0,
             duration: const Duration(milliseconds: 300),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: Text('Draft saved',
-                    style: TextStyle(
-                        color: AppColors.jade.withOpacity(0.8), fontSize: 12)),
-              ),
+            child: Center(
+              child: Text('Saved', style: TextStyle(color: AppColors.jade.withOpacity(0.8), fontSize: 12)),
             ),
           ),
           IconButton(
-            icon: Icon(Icons.note_add_outlined,
-                color: AppColors.paper.withOpacity(0.6)),
-            tooltip: 'New draft',
-            onPressed: _startNewDraft,
+            icon: Icon(Icons.folder_open_outlined, color: AppColors.paper.withOpacity(0.7)),
+            tooltip: 'View Drafts Folder',
+            onPressed: _showDraftsManager,
+          ),
+          IconButton(
+            icon: Icon(Icons.note_add_outlined, color: AppColors.paper.withOpacity(0.7)),
+            tooltip: 'New Blank Page',
+            onPressed: _startNewDraftWorkspace,
           ),
         ],
       ),
@@ -224,11 +338,7 @@ class _WriteScreenState extends State<WriteScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Mentor',
-                  style: TextStyle(
-                      color: AppColors.paper.withOpacity(0.5),
-                      fontSize: 13,
-                      letterSpacing: 1)),
+              Text('Mentor', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
               const SizedBox(height: 10),
               _PersonaPicker(
                 selected: _selectedPersona,
@@ -242,11 +352,8 @@ class _WriteScreenState extends State<WriteScreen> {
                 _BackgroundCard(text: _background!),
                 const SizedBox(height: 20),
               ],
-              Text('Your notebook',
-                  style: TextStyle(
-                      color: AppColors.paper.withOpacity(0.5),
-                      fontSize: 13,
-                      letterSpacing: 1)),
+              Text(_isEditingCompletedEntry ? 'Modify Completed Poem' : 'Your notebook',
+                  style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
               const SizedBox(height: 10),
               _NotebookField(controller: _controller),
               const SizedBox(height: 18),
@@ -258,9 +365,7 @@ class _WriteScreenState extends State<WriteScreen> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 14),
-                Text(_error!,
-                    style: const TextStyle(
-                        color: AppColors.crimson, fontSize: 13)),
+                Text(_error!, style: const TextStyle(color: AppColors.crimson, fontSize: 13)),
               ],
               if (_guidance != null && _guidance!.isNotEmpty) ...[
                 const SizedBox(height: 28),
@@ -268,24 +373,13 @@ class _WriteScreenState extends State<WriteScreen> {
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    Icon(Icons.tips_and_updates_outlined,
-                        size: 16, color: AppColors.violet.withOpacity(0.8)),
+                    Icon(Icons.tips_and_updates_outlined, size: 16, color: AppColors.violet.withOpacity(0.8)),
                     const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'Guidance',
-                        style: TextStyle(
-                            color: AppColors.paper.withOpacity(0.5),
-                            fontSize: 13,
-                            letterSpacing: 1),
-                      ),
-                    ),
+                    Flexible(child: Text('Guidance', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1))),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Text(_guidance!,
-                    style: const TextStyle(
-                        color: AppColors.paper, fontSize: 15, height: 1.6)),
+                Text(_guidance!, style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.6)),
               ],
               const SizedBox(height: 20),
             ],
@@ -298,28 +392,25 @@ class _WriteScreenState extends State<WriteScreen> {
 
 class _NotebookField extends StatelessWidget {
   final TextEditingController controller;
-
   const _NotebookField({required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.inkSurface,
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.inkSurface, 
+        borderRadius: BorderRadius.circular(14), 
         border: Border.all(color: AppColors.inkBorder),
       ),
-      // 🌟 THE FIX: Wrapped the Row in IntrinsicHeight so CrossAxisAlignment.stretch 
-      // calculates the visual bounds based on the TextField content instead of infinite screen height.
-      child: IntrinsicHeight(
+      child: IntrinsicHeight( // 💡 FIXED: This prevents the infinite height constraint crash
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              width: 3,
-              margin: const EdgeInsets.symmetric(vertical: 14),
+              width: 3, 
+              margin: const EdgeInsets.symmetric(vertical: 14), 
               decoration: BoxDecoration(
-                color: AppColors.gold.withOpacity(0.35),
+                color: AppColors.gold.withOpacity(0.35), 
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -328,15 +419,12 @@ class _NotebookField extends StatelessWidget {
                 controller: controller,
                 minLines: 10,
                 maxLines: null,
-                style: const TextStyle(
-                    color: AppColors.paper, fontSize: 16, height: 1.8),
+                style: const TextStyle(color: AppColors.paper, fontSize: 16, height: 1.8),
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.all(16),
-                  hintText:
-                      'Begin your poem, reflection, or idea here...\n\nThis page saves itself as you write.',
-                  hintStyle: TextStyle(
-                      color: AppColors.paper.withOpacity(0.28), height: 1.8),
+                  hintText: 'Begin your poem, reflection, or idea here...\n\nThis page saves itself as you write.',
+                  hintStyle: TextStyle(color: AppColors.paper.withOpacity(0.28), height: 1.8),
                 ),
               ),
             ),
@@ -352,14 +440,7 @@ class _ActionButtons extends StatelessWidget {
   final bool completing;
   final VoidCallback onGetGuidance;
   final VoidCallback onMarkCompleted;
-
-  const _ActionButtons({
-    required this.loadingGuidance,
-    required this.completing,
-    required this.onGetGuidance,
-    required this.onMarkCompleted,
-  });
-
+  const _ActionButtons({required this.loadingGuidance, required this.completing, required this.onGetGuidance, required this.onMarkCompleted});
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -367,73 +448,20 @@ class _ActionButtons extends StatelessWidget {
         final isNarrow = constraints.maxWidth < 360;
         final fontSize = isNarrow ? 13.0 : 14.0;
         final vPad = isNarrow ? 13.0 : 16.0;
-
         final guidanceButton = OutlinedButton(
           onPressed: loadingGuidance ? null : onGetGuidance,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.gold,
-            side: BorderSide(color: AppColors.gold.withOpacity(0.5)),
-            padding: EdgeInsets.symmetric(vertical: vPad),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: loadingGuidance
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppColors.gold),
-                )
-              : FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text('Get Guidance',
-                      style: TextStyle(fontSize: fontSize)),
-                ),
+          style: OutlinedButton.styleFrom(foregroundColor: AppColors.gold, side: BorderSide(color: AppColors.gold.withOpacity(0.5)), padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          child: loadingGuidance ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)) : FittedBox(child: Text('Get Guidance', style: TextStyle(fontSize: fontSize))),
         );
-
         final completeButton = ElevatedButton(
           onPressed: completing ? null : onMarkCompleted,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.seal,
-            foregroundColor: AppColors.paper,
-            padding: EdgeInsets.symmetric(vertical: vPad),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: completing
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppColors.paper),
-                )
-              : FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'Mark as Completed',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: fontSize),
-                  ),
-                ),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.seal, foregroundColor: AppColors.paper, padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          child: completing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.paper)) : FittedBox(child: Text('Mark as Completed', style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize))),
         );
-
         if (isNarrow) {
-          return Column(
-            children: [
-              SizedBox(width: double.infinity, child: completeButton),
-              const SizedBox(height: 10),
-              SizedBox(width: double.infinity, child: guidanceButton),
-            ],
-          );
+          return Column(children: [SizedBox(width: double.infinity, child: completeButton), const SizedBox(height: 10), SizedBox(width: double.infinity, child: guidanceButton)]);
         }
-
-        return Row(
-          children: [
-            Expanded(child: guidanceButton),
-            const SizedBox(width: 12),
-            Expanded(child: completeButton),
-          ],
-        );
+        return Row(children: [Expanded(child: guidanceButton), const SizedBox(width: 12), Expanded(child: completeButton)]);
       },
     );
   }
@@ -441,49 +469,25 @@ class _ActionButtons extends StatelessWidget {
 
 class _BackgroundCard extends StatelessWidget {
   final String text;
-
   const _BackgroundCard({required this.text});
-
   @override
   Widget build(BuildContext context) {
     final isNarrow = MediaQuery.of(context).size.width < 360;
     return Container(
       padding: EdgeInsets.all(isNarrow ? 12 : 16),
-      decoration: BoxDecoration(
-        color: AppColors.violet.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.violet.withOpacity(0.3)),
-      ),
+      decoration: BoxDecoration(color: AppColors.violet.withOpacity(0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.violet.withOpacity(0.3))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.menu_book_outlined,
-                  size: isNarrow ? 14 : 16,
-                  color: AppColors.violet.withOpacity(0.9)),
+              Icon(Icons.menu_book_outlined, size: isNarrow ? 14 : 16, color: AppColors.violet.withOpacity(0.9)),
               const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  'References & Background',
-                  style: TextStyle(
-                    color: AppColors.violet.withOpacity(0.9),
-                    fontSize: isNarrow ? 11.5 : 12.5,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
+              Flexible(child: Text('References & Background', style: TextStyle(color: AppColors.violet.withOpacity(0.9), fontSize: isNarrow ? 11.5 : 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.5))),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            text,
-            style: TextStyle(
-                color: AppColors.paper.withOpacity(0.8),
-                fontSize: isNarrow ? 12.5 : 13.5,
-                height: 1.55),
-          ),
+          Text(text, style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: isNarrow ? 12.5 : 13.5, height: 1.55)),
         ],
       ),
     );
@@ -493,9 +497,7 @@ class _BackgroundCard extends StatelessWidget {
 class _PersonaPicker extends StatelessWidget {
   final Persona selected;
   final ValueChanged<Persona> onChanged;
-
   const _PersonaPicker({required this.selected, required this.onChanged});
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -513,16 +515,8 @@ class _PersonaPicker extends StatelessWidget {
             onSelected: (_) => onChanged(p),
             backgroundColor: AppColors.inkSurface,
             selectedColor: AppColors.gold.withOpacity(0.25),
-            labelStyle: TextStyle(
-              color: isSelected
-                  ? AppColors.gold
-                  : AppColors.paper.withOpacity(0.7),
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-            ),
-            side: BorderSide(
-                color: isSelected
-                    ? AppColors.gold.withOpacity(0.5)
-                    : AppColors.inkBorder),
+            labelStyle: TextStyle(color: isSelected ? AppColors.gold : AppColors.paper.withOpacity(0.7), fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400),
+            side: BorderSide(color: isSelected ? AppColors.gold.withOpacity(0.5) : AppColors.inkBorder),
           );
         },
       ),
