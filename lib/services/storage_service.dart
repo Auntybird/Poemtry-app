@@ -7,8 +7,11 @@ import '../models/writing_draft.dart';
 
 class StorageService {
   static const _apiKeyPref = 'gemini_api_key';
+  static const _secondaryConfigPref = 'secondary_config'; // 💡 Key for your secondary optional setting
   static const _historyPref = 'poem_history';
   static const _draftPref = 'current_draft';
+
+  // --- Gemini API Key ---
 
   Future<void> saveApiKey(String key) async {
     final prefs = await SharedPreferences.getInstance();
@@ -24,6 +27,25 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_apiKeyPref);
   }
+
+  // --- Secondary Optional Configuration ---
+
+  Future<void> saveSecondaryConfig(String config) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_secondaryConfigPref, config);
+  }
+
+  Future<String?> getSecondaryConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_secondaryConfigPref);
+  }
+
+  Future<void> clearSecondaryConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_secondaryConfigPref);
+  }
+
+  // --- History ---
 
   Future<void> addHistoryEntry(HistoryEntry entry) async {
     final list = await getHistory();

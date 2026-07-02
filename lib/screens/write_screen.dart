@@ -147,14 +147,19 @@ class _WriteScreenState extends State<WriteScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.inkSurface,
-        title: const Text('Start a new draft?', style: TextStyle(color: AppColors.paper)),
+        title: const Text('Start a new draft?',
+            style: TextStyle(color: AppColors.paper)),
         content: Text(
           'This clears your current unfinished notebook page. It has not been marked complete.',
           style: TextStyle(color: AppColors.paper.withOpacity(0.7)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Clear')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Clear')),
         ],
       ),
     );
@@ -199,12 +204,15 @@ class _WriteScreenState extends State<WriteScreen> {
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Center(
-                child: Text('Draft saved', style: TextStyle(color: AppColors.jade.withOpacity(0.8), fontSize: 12)),
+                child: Text('Draft saved',
+                    style: TextStyle(
+                        color: AppColors.jade.withOpacity(0.8), fontSize: 12)),
               ),
             ),
           ),
           IconButton(
-            icon: Icon(Icons.note_add_outlined, color: AppColors.paper.withOpacity(0.6)),
+            icon: Icon(Icons.note_add_outlined,
+                color: AppColors.paper.withOpacity(0.6)),
             tooltip: 'New draft',
             onPressed: _startNewDraft,
           ),
@@ -216,7 +224,11 @@ class _WriteScreenState extends State<WriteScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Mentor', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
+              Text('Mentor',
+                  style: TextStyle(
+                      color: AppColors.paper.withOpacity(0.5),
+                      fontSize: 13,
+                      letterSpacing: 1)),
               const SizedBox(height: 10),
               _PersonaPicker(
                 selected: _selectedPersona,
@@ -226,16 +238,17 @@ class _WriteScreenState extends State<WriteScreen> {
                 },
               ),
               const SizedBox(height: 24),
-
               if (_background != null && _background!.isNotEmpty) ...[
                 _BackgroundCard(text: _background!),
                 const SizedBox(height: 20),
               ],
-
-              Text('Your notebook', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
+              Text('Your notebook',
+                  style: TextStyle(
+                      color: AppColors.paper.withOpacity(0.5),
+                      fontSize: 13,
+                      letterSpacing: 1)),
               const SizedBox(height: 10),
               _NotebookField(controller: _controller),
-
               const SizedBox(height: 18),
               _ActionButtons(
                 loadingGuidance: _loadingGuidance,
@@ -243,30 +256,36 @@ class _WriteScreenState extends State<WriteScreen> {
                 onGetGuidance: _getGuidance,
                 onMarkCompleted: _markCompleted,
               ),
-
               if (_error != null) ...[
                 const SizedBox(height: 14),
-                Text(_error!, style: const TextStyle(color: AppColors.crimson, fontSize: 13)),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.crimson, fontSize: 13)),
               ],
-
               if (_guidance != null && _guidance!.isNotEmpty) ...[
                 const SizedBox(height: 28),
                 Container(height: 1, color: AppColors.inkBorder),
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    Icon(Icons.tips_and_updates_outlined, size: 16, color: AppColors.violet.withOpacity(0.8)),
+                    Icon(Icons.tips_and_updates_outlined,
+                        size: 16, color: AppColors.violet.withOpacity(0.8)),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
                         'Guidance',
-                        style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
+                        style: TextStyle(
+                            color: AppColors.paper.withOpacity(0.5),
+                            fontSize: 13,
+                            letterSpacing: 1),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Text(_guidance!, style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.6)),
+                Text(_guidance!,
+                    style: const TextStyle(
+                        color: AppColors.paper, fontSize: 15, height: 1.6)),
               ],
               const SizedBox(height: 20),
             ],
@@ -288,23 +307,40 @@ class _NotebookField extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.inkSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border(
-          top: BorderSide(color: AppColors.inkBorder),
-          right: BorderSide(color: AppColors.inkBorder),
-          bottom: BorderSide(color: AppColors.inkBorder),
-          left: BorderSide(color: AppColors.gold.withOpacity(0.4), width: 3),
-        ),
+        border: Border.all(color: AppColors.inkBorder),
       ),
-      child: TextField(
-        controller: controller,
-        minLines: 10,
-        maxLines: null,
-        style: const TextStyle(color: AppColors.paper, fontSize: 16, height: 1.8),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
-          hintText: 'Begin your poem, reflection, or idea here...\n\nThis page saves itself as you write.',
-          hintStyle: TextStyle(color: AppColors.paper.withOpacity(0.28), height: 1.8),
+      // 🌟 THE FIX: Wrapped the Row in IntrinsicHeight so CrossAxisAlignment.stretch 
+      // calculates the visual bounds based on the TextField content instead of infinite screen height.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 3,
+              margin: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                minLines: 10,
+                maxLines: null,
+                style: const TextStyle(
+                    color: AppColors.paper, fontSize: 16, height: 1.8),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.all(16),
+                  hintText:
+                      'Begin your poem, reflection, or idea here...\n\nThis page saves itself as you write.',
+                  hintStyle: TextStyle(
+                      color: AppColors.paper.withOpacity(0.28), height: 1.8),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -338,16 +374,20 @@ class _ActionButtons extends StatelessWidget {
             foregroundColor: AppColors.gold,
             side: BorderSide(color: AppColors.gold.withOpacity(0.5)),
             padding: EdgeInsets.symmetric(vertical: vPad),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: loadingGuidance
               ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: AppColors.gold),
                 )
               : FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text('Get Guidance', style: TextStyle(fontSize: fontSize)),
+                  child: Text('Get Guidance',
+                      style: TextStyle(fontSize: fontSize)),
                 ),
         );
 
@@ -357,18 +397,22 @@ class _ActionButtons extends StatelessWidget {
             backgroundColor: AppColors.seal,
             foregroundColor: AppColors.paper,
             padding: EdgeInsets.symmetric(vertical: vPad),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: completing
               ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.paper),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: AppColors.paper),
                 )
               : FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     'Mark as Completed',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: fontSize),
                   ),
                 ),
         );
@@ -415,7 +459,9 @@ class _BackgroundCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.menu_book_outlined, size: isNarrow ? 14 : 16, color: AppColors.violet.withOpacity(0.9)),
+              Icon(Icons.menu_book_outlined,
+                  size: isNarrow ? 14 : 16,
+                  color: AppColors.violet.withOpacity(0.9)),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -433,7 +479,10 @@ class _BackgroundCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             text,
-            style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: isNarrow ? 12.5 : 13.5, height: 1.55),
+            style: TextStyle(
+                color: AppColors.paper.withOpacity(0.8),
+                fontSize: isNarrow ? 12.5 : 13.5,
+                height: 1.55),
           ),
         ],
       ),
@@ -465,10 +514,15 @@ class _PersonaPicker extends StatelessWidget {
             backgroundColor: AppColors.inkSurface,
             selectedColor: AppColors.gold.withOpacity(0.25),
             labelStyle: TextStyle(
-              color: isSelected ? AppColors.gold : AppColors.paper.withOpacity(0.7),
+              color: isSelected
+                  ? AppColors.gold
+                  : AppColors.paper.withOpacity(0.7),
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
             ),
-            side: BorderSide(color: isSelected ? AppColors.gold.withOpacity(0.5) : AppColors.inkBorder),
+            side: BorderSide(
+                color: isSelected
+                    ? AppColors.gold.withOpacity(0.5)
+                    : AppColors.inkBorder),
           );
         },
       ),
