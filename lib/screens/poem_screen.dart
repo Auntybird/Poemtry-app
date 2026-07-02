@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/poem_result.dart';
+import '../theme/app_theme.dart';
 
 class PoemScreen extends StatelessWidget {
   final PoemResult result;
@@ -10,12 +11,8 @@ class PoemScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF14151A),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
+      backgroundColor: AppColors.ink,
+      appBar: AppBar(),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
@@ -27,51 +24,26 @@ class PoemScreen extends StatelessWidget {
               Text(
                 result.poem,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.paper,
                   fontSize: 22,
-                  height: 1.8,
+                  height: 1.9,
                   fontWeight: FontWeight.w500,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
               const SizedBox(height: 32),
-              Divider(color: Colors.white.withOpacity(0.15)),
+              Container(height: 1, color: AppColors.inkBorder),
               const SizedBox(height: 20),
-              Text(
-                'You said',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 13,
-                  letterSpacing: 1,
-                ),
-              ),
+              Text('You said', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
               const SizedBox(height: 8),
               Text(
                 result.transcript,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.75),
-                  fontSize: 15,
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: AppColors.paper.withOpacity(0.75), fontSize: 15, fontStyle: FontStyle.italic, height: 1.5),
               ),
               const SizedBox(height: 28),
-              Text(
-                'Meaning',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 13,
-                  letterSpacing: 1,
-                ),
-              ),
+              Text('Meaning', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
               const SizedBox(height: 8),
-              Text(
-                result.explanation,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  height: 1.6,
-                ),
-              ),
+              Text(result.explanation, style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.6)),
               const SizedBox(height: 40),
             ],
           ),
@@ -92,18 +64,11 @@ class _PersonaTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF8E7CC3).withOpacity(0.15),
+        color: AppColors.gold.withOpacity(0.14),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF8E7CC3).withOpacity(0.4)),
+        border: Border.all(color: AppColors.gold.withOpacity(0.4)),
       ),
-      child: Text(
-        '$name · $english',
-        style: const TextStyle(
-          color: Color(0xFFC9BFE8),
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+      child: Text('$name · $english', style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w500)),
     );
   }
 }

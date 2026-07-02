@@ -6,6 +6,7 @@ import 'package:record/record.dart';
 import '../models/history_entry.dart';
 import '../services/gemini_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 import 'analytics_screen.dart';
 import 'history_screen.dart';
 import 'poem_screen.dart';
@@ -106,36 +107,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.inkSurfaceLight,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF14151A),
+      backgroundColor: AppColors.ink,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.bar_chart_rounded, color: Colors.white70),
-            onPressed: () => Navigator.of(context).push(
+          _TopIconButton(
+            icon: Icons.bar_chart_rounded,
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.history_rounded, color: Colors.white70),
-            onPressed: () => Navigator.of(context).push(
+          _TopIconButton(
+            icon: Icons.history_rounded,
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const HistoryScreen()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_rounded, color: Colors.white70),
-            onPressed: () => Navigator.of(context).push(
+          _TopIconButton(
+            icon: Icons.settings_rounded,
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
@@ -146,50 +149,76 @@ class _HomeScreenState extends State<HomeScreen> {
               const Text(
                 '诸子百家',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
+                  color: AppColors.paper,
+                  fontSize: 34,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 4,
+                  letterSpacing: 6,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
+              Container(width: 36, height: 1, color: AppColors.gold.withOpacity(0.6)),
+              const SizedBox(height: 14),
               Text(
                 _statusLabel(),
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 15,
+                  color: AppColors.paper.withOpacity(0.55),
+                  fontSize: 14,
+                  letterSpacing: 0.5,
                 ),
               ),
-              const SizedBox(height: 64),
-              GestureDetector(
-                onTap: _onMicTapped,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _micColor(),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _micColor().withOpacity(0.4),
-                        blurRadius: _state == _AppState.recording ? 30 : 12,
-                        spreadRadius: _state == _AppState.recording ? 6 : 0,
+              const SizedBox(height: 70),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 230,
+                    height: 230,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [_micColor().withOpacity(0.16), Colors.transparent],
                       ),
-                    ],
+                    ),
                   ),
-                  child: Center(
-                    child: _state == _AppState.processing
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Icon(
-                            _state == _AppState.recording
-                                ? Icons.stop_rounded
-                                : Icons.mic_rounded,
-                            color: Colors.white,
-                            size: 48,
+                  GestureDetector(
+                    onTap: _onMicTapped,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: 116,
+                      height: 116,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _micColor(),
+                        border: Border.all(color: AppColors.paper.withOpacity(0.08)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _micColor().withOpacity(0.45),
+                            blurRadius: _state == _AppState.recording ? 34 : 14,
+                            spreadRadius: _state == _AppState.recording ? 6 : 0,
                           ),
+                        ],
+                      ),
+                      child: Center(
+                        child: _state == _AppState.processing
+                            ? const SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  color: AppColors.paper,
+                                  strokeWidth: 2.4,
+                                ),
+                              )
+                            : Icon(
+                                _state == _AppState.recording
+                                    ? Icons.stop_rounded
+                                    : Icons.mic_rounded,
+                                color: AppColors.paper,
+                                size: 44,
+                              ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
@@ -212,11 +241,35 @@ class _HomeScreenState extends State<HomeScreen> {
   Color _micColor() {
     switch (_state) {
       case _AppState.idle:
-        return const Color(0xFF5A5F73);
+        return AppColors.inkSurfaceLight;
       case _AppState.recording:
-        return const Color(0xFFC0392B);
+        return AppColors.seal;
       case _AppState.processing:
-        return const Color(0xFF8E7CC3);
+        return AppColors.gold;
     }
+  }
+}
+
+class _TopIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _TopIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.inkSurface),
+          child: Icon(icon, color: AppColors.paper.withOpacity(0.75), size: 20),
+        ),
+      ),
+    );
   }
 }

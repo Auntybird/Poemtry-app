@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/history_entry.dart';
 import '../models/poem_result.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 import 'poem_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -39,29 +40,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF14151A),
+      backgroundColor: AppColors.ink,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('History', style: TextStyle(color: Colors.white)),
+        title: const Text('History'),
         actions: [
           if (_entries.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.white70),
+              icon: Icon(Icons.delete_outline, color: AppColors.paper.withOpacity(0.7)),
               onPressed: _clearAll,
             ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
           : _entries.isEmpty
-              ? Center(
-                  child: Text(
-                    'No poems yet',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5)),
-                  ),
-                )
+              ? Center(child: Text('No poems yet', style: TextStyle(color: AppColors.paper.withOpacity(0.5))))
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: _entries.length,
@@ -106,27 +99,18 @@ class _HistoryTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: AppColors.inkSurface,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.inkBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Text(
-                  entry.personaName,
-                  style: const TextStyle(
-                    color: Color(0xFFC9BFE8),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text(entry.personaName, style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600)),
                 const Spacer(),
-                Text(
-                  _formatDate(entry.timestamp),
-                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
-                ),
+                Text(_formatDate(entry.timestamp), style: TextStyle(color: AppColors.paper.withOpacity(0.4), fontSize: 12)),
               ],
             ),
             const SizedBox(height: 8),
@@ -134,7 +118,7 @@ class _HistoryTile extends StatelessWidget {
               entry.poem,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+              style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.4),
             ),
           ],
         ),
