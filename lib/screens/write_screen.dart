@@ -186,6 +186,8 @@ class _WriteScreenState extends State<WriteScreen> {
       );
     }
 
+    final isNarrow = MediaQuery.of(context).size.width < 360;
+
     return Scaffold(
       backgroundColor: AppColors.ink,
       appBar: AppBar(
@@ -210,7 +212,7 @@ class _WriteScreenState extends State<WriteScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isNarrow ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -235,44 +237,11 @@ class _WriteScreenState extends State<WriteScreen> {
               _NotebookField(controller: _controller),
 
               const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _loadingGuidance ? null : _getGuidance,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.gold,
-                        side: BorderSide(color: AppColors.gold.withOpacity(0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: _loadingGuidance
-                          ? const SizedBox(
-                              width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold),
-                            )
-                          : const Text('Get Guidance'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _completing ? null : _markCompleted,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.seal,
-                        foregroundColor: AppColors.paper,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: _completing
-                          ? const SizedBox(
-                              width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.paper),
-                            )
-                          : const Text('Mark as Completed', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ],
+              _ActionButtons(
+                loadingGuidance: _loadingGuidance,
+                completing: _completing,
+                onGetGuidance: _getGuidance,
+                onMarkCompleted: _markCompleted,
               ),
 
               if (_error != null) ...[
@@ -288,7 +257,12 @@ class _WriteScreenState extends State<WriteScreen> {
                   children: [
                     Icon(Icons.tips_and_updates_outlined, size: 16, color: AppColors.violet.withOpacity(0.8)),
                     const SizedBox(width: 6),
-                    Text('Guidance', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
+                    Flexible(
+                      child: Text(
+                        'Guidance',
+                        style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -314,35 +288,109 @@ class _NotebookField extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.inkSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.inkBorder),
+        border: Border(
+          top: BorderSide(color: AppColors.inkBorder),
+          right: BorderSide(color: AppColors.inkBorder),
+          bottom: BorderSide(color: AppColors.inkBorder),
+          left: BorderSide(color: AppColors.gold.withOpacity(0.4), width: 3),
+        ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 3,
-            margin: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              minLines: 10,
-              maxLines: null,
-              style: const TextStyle(color: AppColors.paper, fontSize: 16, height: 1.8),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(16),
-                hintText: 'Begin your poem, reflection, or idea here...\n\nThis page saves itself as you write.',
-                hintStyle: TextStyle(color: AppColors.paper.withOpacity(0.28), height: 1.8),
-              ),
-            ),
-          ),
-        ],
+      child: TextField(
+        controller: controller,
+        minLines: 10,
+        maxLines: null,
+        style: const TextStyle(color: AppColors.paper, fontSize: 16, height: 1.8),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+          hintText: 'Begin your poem, reflection, or idea here...\n\nThis page saves itself as you write.',
+          hintStyle: TextStyle(color: AppColors.paper.withOpacity(0.28), height: 1.8),
+        ),
       ),
+    );
+  }
+}
+
+class _ActionButtons extends StatelessWidget {
+  final bool loadingGuidance;
+  final bool completing;
+  final VoidCallback onGetGuidance;
+  final VoidCallback onMarkCompleted;
+
+  const _ActionButtons({
+    required this.loadingGuidance,
+    required this.completing,
+    required this.onGetGuidance,
+    required this.onMarkCompleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 360;
+        final fontSize = isNarrow ? 13.0 : 14.0;
+        final vPad = isNarrow ? 13.0 : 16.0;
+
+        final guidanceButton = OutlinedButton(
+          onPressed: loadingGuidance ? null : onGetGuidance,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.gold,
+            side: BorderSide(color: AppColors.gold.withOpacity(0.5)),
+            padding: EdgeInsets.symmetric(vertical: vPad),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: loadingGuidance
+              ? const SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold),
+                )
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Get Guidance', style: TextStyle(fontSize: fontSize)),
+                ),
+        );
+
+        final completeButton = ElevatedButton(
+          onPressed: completing ? null : onMarkCompleted,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.seal,
+            foregroundColor: AppColors.paper,
+            padding: EdgeInsets.symmetric(vertical: vPad),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: completing
+              ? const SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.paper),
+                )
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Mark as Completed',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize),
+                  ),
+                ),
+        );
+
+        if (isNarrow) {
+          return Column(
+            children: [
+              SizedBox(width: double.infinity, child: completeButton),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: guidanceButton),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: guidanceButton),
+            const SizedBox(width: 12),
+            Expanded(child: completeButton),
+          ],
+        );
+      },
     );
   }
 }
@@ -354,8 +402,9 @@ class _BackgroundCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 360;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isNarrow ? 12 : 16),
       decoration: BoxDecoration(
         color: AppColors.violet.withOpacity(0.08),
         borderRadius: BorderRadius.circular(14),
@@ -366,13 +415,26 @@ class _BackgroundCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.menu_book_outlined, size: 16, color: AppColors.violet.withOpacity(0.9)),
+              Icon(Icons.menu_book_outlined, size: isNarrow ? 14 : 16, color: AppColors.violet.withOpacity(0.9)),
               const SizedBox(width: 6),
-              Text('References & Background', style: TextStyle(color: AppColors.violet.withOpacity(0.9), fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+              Flexible(
+                child: Text(
+                  'References & Background',
+                  style: TextStyle(
+                    color: AppColors.violet.withOpacity(0.9),
+                    fontSize: isNarrow ? 11.5 : 12.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(text, style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: 13.5, height: 1.55)),
+          Text(
+            text,
+            style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: isNarrow ? 12.5 : 13.5, height: 1.55),
+          ),
         ],
       ),
     );
