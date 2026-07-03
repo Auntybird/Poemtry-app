@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/history_entry.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/poem_export_dialog.dart'; // Added import for the export dialog
 
 class PoemScreen extends StatefulWidget {
   final HistoryEntry entry;
@@ -44,6 +45,16 @@ class _PoemScreenState extends State<PoemScreen> {
       backgroundColor: AppColors.ink,
       appBar: AppBar(
         actions: [
+          // NEW: Export / Share button added here
+          IconButton(
+            icon: Icon(Icons.ios_share_rounded, color: AppColors.paper.withOpacity(0.7), size: 20),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => PoemExportDialog(entry: widget.entry),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.copy_rounded, color: AppColors.paper.withOpacity(0.7), size: 20),
             onPressed: _copyToClipboard,

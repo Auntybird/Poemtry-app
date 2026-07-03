@@ -13,8 +13,6 @@ class WritingGuidance {
 }
 
 class GeminiTextService {
-  static const _model = 'gemini-2.5-flash';
-
   final StorageService _storage = StorageService();
 
   Future<WritingGuidance> getGuidance(String userText, Persona persona) async {
@@ -23,9 +21,13 @@ class GeminiTextService {
       throw Exception('No Gemini API key set. Go to Settings and add your key.');
     }
 
+    // 💡 NEW: Fetch dynamic model and temperature configurations
+    final modelName = await _storage.getGeminiModel();
+    final temperature = await _storage.getGeminiTemperature();
+
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/'
-      '$_model:generateContent?key=$apiKey',
+      '$modelName:generateContent?key=$apiKey',
     );
 
     final systemPrompt = '''
@@ -60,7 +62,11 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
             ],
           },
         ],
-        'generationConfig': {'responseMimeType': 'application/json'},
+        // 💡 NEW: Injects temperature directly into the REST API call
+        'generationConfig': {
+          'responseMimeType': 'application/json',
+          'temperature': temperature,
+        },
       }),
     );
 

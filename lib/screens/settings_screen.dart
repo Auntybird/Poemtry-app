@@ -15,14 +15,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   // Controllers
   final _apiKeyController = TextEditingController();
-  final _secondaryController = TextEditingController(); // 💡 Customize this for your 2nd setting
   
   bool _obscureApiKey = true;
-  bool _obscureSecondary = false; // Set to true if this should also be a hidden password/token
-  
   bool _justSaved = false;
   bool _apiKeyPresent = false;
-  bool _secondaryPresent = false;
+  bool _isLoading = true;
+
+  String _selectedModel = StorageService.defaultModel;
+  double _temperature = StorageService.defaultTemperature;
+
+  final List<Map<String, String>> _availableModels = [
+    {'value': 'gemini-1.5-flash', 'label': '1.5 Flash (Fast & Fluid)'},
+    {'value': 'gemini-1.5-pro', 'label': '1.5 Pro (Deep & Insightful)'},
+  ];
 
   @override
   void initState() {
@@ -32,29 +37,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final apiKey = await _storage.getApiKey();
-    // 💡 Replace with your actual secondary storage getter method
-    final secondaryConfig = await _storage.getSecondaryConfig(); 
+    final model = await _storage.getGeminiModel();
+    final temp = await _storage.getGeminiTemperature();
 
-    if (apiKey != null) _apiKeyController.text = apiKey;
-    if (secondaryConfig != null) _secondaryController.text = secondaryConfig;
-
-    setState(() {
-      _apiKeyPresent = apiKey != null && apiKey.isNotEmpty;
-      _secondaryPresent = secondaryConfig != null && secondaryConfig.isNotEmpty;
-    });
+    if (mounted) {
+      setState(() {
+        if (apiKey != null) _apiKeyController.text = apiKey;
+        _apiKeyPresent = apiKey != null && apiKey.isNotEmpty;
+        _selectedModel = model;
+        _temperature = temp;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _saveAll() async {
     final trimmedKey = _apiKeyController.text.trim();
-    final trimmedSecondary = _secondaryController.text.trim();
 
-    // Save both optionally to storage
-    await _storage.saveApiKey(trimmedKey);
-    await _storage.saveSecondaryConfig(trimmedSecondary); // 💡 Replace with your method
+    if (trimmedKey.isEmpty) {
+      await _storage.clearApiKey();
+    } else {
+      await _storage.saveApiKey(trimmedKey);
+    }
+    
+    await _storage.saveGeminiParams(
+      model: _selectedModel,
+      temperature: _temperature,
+    );
 
     setState(() {
       _apiKeyPresent = trimmedKey.isNotEmpty;
-      _secondaryPresent = trimmedSecondary.isNotEmpty;
       _justSaved = true;
     });
 
@@ -65,28 +77,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _clearAll() async {
     await _storage.clearApiKey();
-    await _storage.clearSecondaryConfig(); // 💡 Replace with your method
+    await _storage.saveGeminiParams(
+      model: StorageService.defaultModel,
+      temperature: StorageService.defaultTemperature,
+    );
     
     _apiKeyController.clear();
-    _secondaryController.clear();
 
     setState(() {
       _apiKeyPresent = false;
-      _secondaryPresent = false;
+      _selectedModel = StorageService.defaultModel;
+      _temperature = StorageService.defaultTemperature;
     });
   }
 
   @override
   void dispose() {
     _apiKeyController.dispose();
-    _secondaryController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.ink,
+        body: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+      );
+    }
+
     final apiKeyStatusColor = _apiKeyPresent ? AppColors.jade : AppColors.crimson;
-    final secondaryStatusColor = _secondaryPresent ? AppColors.jade : AppColors.crimson;
 
     return Scaffold(
       backgroundColor: AppColors.ink,
@@ -136,39 +156,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 32), // Breathing room between settings blocks
+              const SizedBox(height: 32),
 
               // ==========================================
-              // FIELD 2: SECONDARY OPTIONAL SETTING
+              // FIELD 2: MODEL SELECTION
+              // ==========================================
+              const Text(
+                'AI Model',
+                style: TextStyle(color: AppColors.paper, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Choose the brain powering your writing mentor.',
+                style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _availableModels.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final item = _availableModels[index];
+                  final isSelected = _selectedModel == item['value'];
+                  return InkWell(
+                    onTap: () => setState(() => _selectedModel = item['value']!),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.gold.withOpacity(0.08) : AppColors.inkSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isSelected ? AppColors.gold : AppColors.inkBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                            color: isSelected ? AppColors.gold : AppColors.paper.withOpacity(0.4),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(item['label']!, style: TextStyle(color: isSelected ? AppColors.gold : AppColors.paper, fontSize: 15, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 32),
+
+              // ==========================================
+              // FIELD 3: TEMPERATURE CONTROL
               // ==========================================
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Secondary Configuration', // 💡 Rename to "Firebase URL", etc.
+                    'Creativity Level',
                     style: TextStyle(color: AppColors.paper, fontSize: 16, fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(width: 10),
-                  _buildStatusIndicator(secondaryStatusColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    _secondaryPresent ? 'Active' : 'Optional / Not set',
-                    style: TextStyle(color: secondaryStatusColor, fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
+                  Text(_temperature.toStringAsFixed(1), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 15)),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                'Provide your optional project backend reference string or alternative service URL.',
+                'Adjust how experimental the AI should be with its feedback.',
                 style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13),
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _secondaryController,
-                obscureText: _obscureSecondary,
-                style: const TextStyle(color: AppColors.paper),
-                decoration: _buildInputDecoration(
-                  hintText: 'Enter secondary target identifier', 
-                  statusColor: secondaryStatusColor,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.inkSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.inkBorder),
+                ),
+                child: Column(
+                  children: [
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: AppColors.gold,
+                        inactiveTrackColor: AppColors.inkBorder,
+                        thumbColor: AppColors.gold,
+                        overlayColor: AppColors.gold.withOpacity(0.12),
+                        valueIndicatorColor: AppColors.seal,
+                      ),
+                      child: Slider(
+                        value: _temperature,
+                        min: 0.0,
+                        max: 1.0,
+                        divisions: 10,
+                        onChanged: (val) => setState(() => _temperature = val),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Analytical', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('Imaginative', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    )
+                  ],
                 ),
               ),
 
@@ -187,15 +279,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: Text(_justSaved ? 'Settings Saved ✓' : 'Save Settings'),
+                    child: Text(_justSaved ? 'Settings Saved ✨' : 'Save Settings'),
                   ),
                   const SizedBox(width: 12),
                   TextButton(
                     onPressed: _clearAll,
-                    child: Text('Clear All', style: TextStyle(color: AppColors.paper.withOpacity(0.6))),
+                    child: Text('Reset', style: TextStyle(color: AppColors.paper.withOpacity(0.6))),
                   ),
                 ],
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

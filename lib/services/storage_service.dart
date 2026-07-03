@@ -7,9 +7,16 @@ import '../models/writing_draft.dart';
 
 class StorageService {
   static const _apiKeyPref = 'gemini_api_key';
-  static const _secondaryConfigPref = 'secondary_config';
   static const _historyPref = 'poem_history';
   static const _draftsPref = 'writing_drafts_list'; // 💡 Changed to list key
+  
+  // 💡 NEW: Gemini Configuration Keys
+  static const _modelPref = 'gemini_model';
+  static const _temperaturePref = 'gemini_temperature';
+
+  // Default values
+  static const String defaultModel = 'gemini-1.5-flash';
+  static const double defaultTemperature = 0.7;
 
   // --- Gemini API Key ---
 
@@ -28,21 +35,22 @@ class StorageService {
     await prefs.remove(_apiKeyPref);
   }
 
-  // --- Secondary Configuration ---
+  // --- Gemini Parameters Configuration ---
 
-  Future<void> saveSecondaryConfig(String config) async {
+  Future<void> saveGeminiParams({required String model, required double temperature}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_secondaryConfigPref, config);
+    await prefs.setString(_modelPref, model);
+    await prefs.setDouble(_temperaturePref, temperature);
   }
 
-  Future<String?> getSecondaryConfig() async {
+  Future<String> getGeminiModel() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_secondaryConfigPref);
+    return prefs.getString(_modelPref) ?? defaultModel;
   }
 
-  Future<void> clearSecondaryConfig() async {
+  Future<double> getGeminiTemperature() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_secondaryConfigPref);
+    return prefs.getDouble(_temperaturePref) ?? defaultTemperature;
   }
 
   // --- History (Completed Items) ---
