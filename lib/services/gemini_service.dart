@@ -13,6 +13,71 @@ class GeminiPoemService {
 
   final StorageService _storage = StorageService();
 
+  // --- Daily Prompts Generation (NEW) ---
+  
+  Future<List<String>> fetchWeeklyPrompts(String personaName, String philosophyDescription) async {
+    final apiKey = await _storage.getApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('No Gemini API key set. Go to Settings and add your key.');
+    }
+
+    final modelName = await _storage.getGeminiModel();
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey'
+    );
+
+    final systemPrompt = '''
+You are $personaName, a master mentor of the $philosophyDescription school of Chinese philosophy.
+Generate a list of exactly 7 unique, highly evocative creative writing prompts or daily inspirations for a user looking to reflect or write a poem.
+Each prompt should encourage mindfulness, observation of nature, or emotional self-reflection matching your philosophical view.
+Keep each prompt short (1-2 sentences).
+Format your output EXACTLY like this with no numbers, bullet points, or introductory text, separating each prompt with '|||':
+Prompt one here|||Prompt two here|||Prompt three here
+''';
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({
+          'contents': [
+            {
+              'parts': [{'text': systemPrompt}]
+            }
+          ]
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final String textResult = data['candidates'][0]['content']['parts'][0]['text'];
+        
+        List<String> prompts = textResult
+            .split('|||')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+
+        if (prompts.isEmpty) throw Exception("Malformed AI response");
+        return prompts;
+      } else {
+        throw Exception("Failed to contact Gemini");
+      }
+    } catch (e) {
+      return [
+        "Look closely at the space between things. What fills the emptiness?",
+        "Write of a river that changes direction, yet remains the same river.",
+        "Reflect on a silent burden you carry. Give it a shape and color.",
+        "The wind leaves no trace on the mountain. Write about an impact left unseen.",
+        "Capture the transition of twilight into complete darkness.",
+        "A single leaf falls without a sound. What does it whisper to the earth?",
+        "Consider an old friend who has drifted away. Send them a verse."
+      ];
+    }
+  }
+
+  // --- Original Audio-to-Poem ---
+
   Future<PoemResult> generateFromAudio(String audioFilePath) async {
     final apiKey = await _storage.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {

@@ -6,8 +6,10 @@ import '../models/history_entry.dart';
 import '../models/persona.dart';
 import '../models/writing_draft.dart';
 import '../services/gemini_text_service.dart';
+import '../services/gemini_service.dart'; // NEW: Imported for prompt generator
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/poetic_prompt_banner.dart'; // NEW: Imported Banner Widget
 import 'poem_screen.dart';
 
 class WriteScreen extends StatefulWidget {
@@ -23,6 +25,7 @@ class WriteScreen extends StatefulWidget {
 class _WriteScreenState extends State<WriteScreen> {
   final _controller = TextEditingController();
   final _service = GeminiTextService();
+  final _poemService = GeminiPoemService(); // NEW
   final _storage = StorageService();
 
   String _currentDraftId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -33,6 +36,11 @@ class _WriteScreenState extends State<WriteScreen> {
   bool _completing = false;
   bool _restoringDraft = true;
   bool _justSaved = false;
+  
+  // NEW: State for Daily Prompt Banner
+  String _currentPrompt = "Listening to the universe...";
+  bool _isPromptLoading = false;
+
   String? _guidance;
   String? _background;
   String? _error;
@@ -84,6 +92,44 @@ class _WriteScreenState extends State<WriteScreen> {
       }
     }
     setState(() => _restoringDraft = false);
+    
+    // NEW: Load the daily prompt for the recovered persona
+    _loadDailyPrompt();
+  }
+  
+  // NEW: Loads or caches the daily prompt based on current persona
+  Future<void> _loadDailyPrompt() async {
+    setState(() => _isPromptLoading = true);
+    
+    String? cachedPrompt = await _storage.getDailyPrompt(_selectedPersona.name);
+    
+    if (cachedPrompt != null) {
+      if (mounted) setState(() {
+        _currentPrompt = cachedPrompt;
+        _isPromptLoading = false;
+      });
+      return;
+    }
+
+    try {
+      List<String> freshPrompts = await _poemService.fetchWeeklyPrompts(
+        _selectedPersona.name, 
+        _selectedPersona.philosophy,
+      );
+      
+      await _storage.saveWeeklyPrompts(_selectedPersona.name, freshPrompts);
+      int dayIndex = (DateTime.now().weekday - 1) % freshPrompts.length;
+      
+      if (mounted) setState(() {
+        _currentPrompt = freshPrompts[dayIndex];
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        _currentPrompt = "Reflect on quiet stillness and find your rhythm today.";
+      });
+    } finally {
+      if (mounted) setState(() => _isPromptLoading = false);
+    }
   }
 
   void _onTextChanged() {
@@ -275,6 +321,9 @@ class _WriteScreenState extends State<WriteScreen> {
                                 _background = d.background;
                               });
                               _controller.addListener(_onTextChanged);
+                              
+                              // NEW: Reload the prompt based on the restored draft's persona
+                              _loadDailyPrompt();
                             },
                           );
                         },
@@ -345,9 +394,19 @@ class _WriteScreenState extends State<WriteScreen> {
                 onChanged: (p) {
                   setState(() => _selectedPersona = p);
                   _persistDraft();
+                  _loadDailyPrompt(); // NEW: Reload prompt when user picks a new persona
                 },
               ),
               const SizedBox(height: 24),
+
+              // NEW: Render the Banner directly into your notebook view
+              PoeticPromptBanner(
+                promptText: _currentPrompt,
+                personaName: _selectedPersona.name,
+                isLoading: _isPromptLoading,
+              ),
+              const SizedBox(height: 20),
+              
               if (_background != null && _background!.isNotEmpty) ...[
                 _BackgroundCard(text: _background!),
                 const SizedBox(height: 20),
@@ -402,7 +461,7 @@ class _NotebookField extends StatelessWidget {
         borderRadius: BorderRadius.circular(14), 
         border: Border.all(color: AppColors.inkBorder),
       ),
-      child: IntrinsicHeight( // 💡 FIXED: This prevents the infinite height constraint crash
+      child: IntrinsicHeight( 
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

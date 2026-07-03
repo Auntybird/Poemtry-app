@@ -8,9 +8,8 @@ import '../models/writing_draft.dart';
 class StorageService {
   static const _apiKeyPref = 'gemini_api_key';
   static const _historyPref = 'poem_history';
-  static const _draftsPref = 'writing_drafts_list'; // 💡 Changed to list key
+  static const _draftsPref = 'writing_drafts_list'; 
   
-  // 💡 NEW: Gemini Configuration Keys
   static const _modelPref = 'gemini_model';
   static const _temperaturePref = 'gemini_temperature';
 
@@ -53,6 +52,45 @@ class StorageService {
     return prefs.getDouble(_temperaturePref) ?? defaultTemperature;
   }
 
+  // --- Daily Prompts Cache (NEW) ---
+
+  Future<String?> getDailyPrompt(String personaName) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = 'prompts_cache_$personaName';
+    final cachedDataStr = prefs.getString(cacheKey);
+
+    if (cachedDataStr == null) return null;
+
+    try {
+      final Map<String, dynamic> cache = jsonDecode(cachedDataStr);
+      final DateTime fetchedAt = DateTime.parse(cache['fetchedAt']);
+      
+      if (DateTime.now().difference(fetchedAt).inDays >= 7) {
+        return null; 
+      }
+
+      final List<dynamic> prompts = cache['prompts'];
+      if (prompts.isEmpty) return null;
+
+      int dayIndex = (DateTime.now().weekday - 1) % prompts.length;
+      return prompts[dayIndex] as String;
+    } catch (_) {
+      return null; 
+    }
+  }
+
+  Future<void> saveWeeklyPrompts(String personaName, List<String> prompts) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = 'prompts_cache_$personaName';
+    
+    final cacheData = {
+      'fetchedAt': DateTime.now().toIso8601String(),
+      'prompts': prompts,
+    };
+
+    await prefs.setString(cacheKey, jsonEncode(cacheData));
+  }
+
   // --- History (Completed Items) ---
 
   Future<void> addHistoryEntry(HistoryEntry entry) async {
@@ -61,7 +99,6 @@ class StorageService {
     await _saveList(list);
   }
 
-  // 💡 NEW METHOD: Allows updating an already existing history item anytime
   Future<void> updateHistoryEntry(HistoryEntry entry) async {
     final list = await getHistory();
     final idx = list.indexWhere((e) => e.id == entry.id);
@@ -108,7 +145,6 @@ class StorageService {
 
   // --- Multiple Notebook Drafts Management ---
 
-  // 💡 Fetches all saved active drafts sorted by latest updated
   Future<List<WritingDraft>> getDrafts() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_draftsPref);
@@ -119,7 +155,6 @@ class StorageService {
     return drafts;
   }
 
-  // 💡 Saves or Updates a draft within the collection
   Future<void> saveDraft(WritingDraft draft) async {
     final list = await getDrafts();
     final idx = list.indexWhere((d) => d.id == draft.id);
@@ -132,7 +167,6 @@ class StorageService {
     await prefs.setString(_draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 
-  // 💡 Removes a single specific draft
   Future<void> deleteDraft(String id) async {
     final list = await getDrafts();
     list.removeWhere((d) => d.id == id);
