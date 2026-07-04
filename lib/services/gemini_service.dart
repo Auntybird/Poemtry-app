@@ -9,13 +9,19 @@ import '../models/poem_result.dart';
 import 'storage_service.dart';
 
 class GeminiPoemService {
-  static const _model = 'gemini-2.5-flash';
+  // FIX: Removed the hardcoded _model constant entirely to enforce dynamic loading.
 
   final StorageService _storage = StorageService();
 
-  // --- Daily Prompts Generation (NEW) ---
+  // --- Daily Prompts Generation ---
   
   Future<List<String>> fetchWeeklyPrompts(String personaName, String philosophyDescription) async {
+    // FIX: Check cache BEFORE calling the API to save rate limits
+    final cachedPrompts = await _storage.getCachedWeeklyPrompts(personaName);
+    if (cachedPrompts != null && cachedPrompts.isNotEmpty) {
+      return cachedPrompts;
+    }
+
     final apiKey = await _storage.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw Exception('No Gemini API key set. Go to Settings and add your key.');
@@ -48,6 +54,11 @@ Prompt one here|||Prompt two here|||Prompt three here
         }),
       );
 
+      // FIX: Graceful Rate Limit Handling
+      if (response.statusCode == 429) {
+        throw Exception('The AI is currently meditating to gather inspiration (Rate Limit). Please wait a moment and try again.');
+      }
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final String textResult = data['candidates'][0]['content']['parts'][0]['text'];
@@ -59,11 +70,16 @@ Prompt one here|||Prompt two here|||Prompt three here
             .toList();
 
         if (prompts.isEmpty) throw Exception("Malformed AI response");
+        
+        // FIX: Save the successful response to the cache
+        await _storage.saveWeeklyPrompts(personaName, prompts);
+        
         return prompts;
       } else {
-        throw Exception("Failed to contact Gemini");
+        throw Exception("Failed to contact Gemini (Error ${response.statusCode})");
       }
     } catch (e) {
+      // Fallback prompts if absolutely everything fails
       return [
         "Look closely at the space between things. What fills the emptiness?",
         "Write of a river that changes direction, yet remains the same river.",
@@ -84,6 +100,8 @@ Prompt one here|||Prompt two here|||Prompt three here
       throw Exception('No Gemini API key set. Go to Settings and add your key.');
     }
 
+    // FIX: Dynamically fetch the model here so user settings apply to the audio feature too!
+    final modelName = await _storage.getGeminiModel();
     final persona = personas[Random().nextInt(personas.length)];
 
     final bytes = await File(audioFilePath).readAsBytes();
@@ -91,7 +109,7 @@ Prompt one here|||Prompt two here|||Prompt three here
 
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/'
-      '$_model:generateContent?key=$apiKey',
+      '$modelName:generateContent?key=$apiKey',
     );
 
     final systemPrompt = '''
@@ -136,14 +154,18 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
       }),
     );
 
-    if (response.statusCode != 200) {
-      throw Exception('Gemini API error ${response.statusCode}: ${response.body}');
+    // FIX: Graceful Rate Limit Catching
+    if (response.statusCode == 429) {
+      throw Exception('The AI is currently meditating to gather inspiration (Rate Limit). Please wait a moment and try again.');
+    } else if (response.statusCode != 200) {
+      // Hide the massive JSON blob from the user interface
+      throw Exception('The winds of inspiration failed us (Error ${response.statusCode}). Please try again later.');
     }
 
     final data = jsonDecode(response.body);
     final candidates = data['candidates'] as List?;
     if (candidates == null || candidates.isEmpty) {
-      throw Exception('No response from Gemini. Raw: ${response.body}');
+      throw Exception('The AI responded with silence. Please try again.');
     }
 
     final text = candidates[0]['content']['parts'][0]['text'] as String;
