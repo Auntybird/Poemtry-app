@@ -12,23 +12,120 @@ class WritingGuidance {
   const WritingGuidance({required this.guidance, required this.background});
 }
 
+class PoemAnalysis {
+  final String structureType;
+  final String tonalFeedback;
+  final String rhymeFeedback;
+  final List<String> ruleBreaks;
+
+  const PoemAnalysis({
+    required this.structureType,
+    required this.tonalFeedback,
+    required this.rhymeFeedback,
+    required this.ruleBreaks,
+  });
+}
+
 class GeminiTextService {
+  static const List<String> supportedModels = [
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+  ];
+
   final StorageService _storage = StorageService();
 
-  Future<WritingGuidance> getGuidance(String userText, Persona persona) async {
-    final apiKey = await _storage.getApiKey();
-    if (apiKey == null || apiKey.isEmpty) {
-      throw Exception('No Gemini API key set. Go to Settings and add your key.');
+  static List<String> resolveModelCandidates(String? preferredModel) {
+    final trimmed = preferredModel?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return supportedModels.toList();
     }
 
-    // 💡 NEW: Fetch dynamic model and temperature configurations
-    final modelName = await _storage.getGeminiModel();
-    final temperature = await _storage.getGeminiTemperature();
+    final ordered = <String>[trimmed];
+    for (final model in supportedModels) {
+      if (model != trimmed && !ordered.contains(model)) {
+        ordered.add(model);
+      }
+    }
+    return ordered;
+  }
 
-    final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/'
-      '$modelName:generateContent?key=$apiKey',
-    );
+  Future<String> _generateWithFallback({
+    required String systemPrompt,
+    required double temperature,
+    required String userText,
+  }) async {
+    final apiKey = await _storage.getApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception(
+          'No Gemini API key set. Go to Settings and add your key.');
+    }
+
+    final modelNames = resolveModelCandidates(await _storage.getGeminiModel());
+    Object? lastError;
+
+    for (final modelName in modelNames) {
+      try {
+        final uri = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1/models/$modelName:generateContent?key=$apiKey',
+        );
+
+        final response = await http.post(
+          uri,
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({
+            'contents': [
+              {
+                'role': 'user',
+                'parts': [
+                  {
+                    'text': '$systemPrompt\n\nUser request:\n$userText',
+                  },
+                ],
+              },
+            ],
+            'generationConfig': {
+              'temperature': temperature,
+            },
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final text =
+              data['candidates']?[0]?['content']?['parts']?[0]?['text'];
+          if (text is String && text.isNotEmpty) {
+            return text;
+          }
+          throw Exception('No response from Gemini.');
+        }
+
+        final errorBody = response.body;
+        lastError = 'Model $modelName failed: $errorBody';
+
+        if (response.statusCode == 400 ||
+            response.statusCode == 404 ||
+            response.statusCode == 422) {
+          if (modelName != modelNames.last) {
+            continue;
+          }
+        }
+
+        break;
+      } catch (e) {
+        lastError = e;
+        if (modelName == modelNames.last) {
+          break;
+        }
+      }
+    }
+
+    throw Exception('Gemini request failed: $lastError');
+  }
+
+  Future<WritingGuidance> getGuidance(String userText, Persona persona) async {
+    final temperature = await _storage.getGeminiTemperature();
 
     final systemPrompt = '''
 You are a writing mentor from the ${persona.name} (${persona.englishName}) school of Chinese thought, coaching someone drafting their own poem or reflection.
@@ -46,46 +143,61 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
 {"guidance": "...", "background": "..."}
 ''';
 
-    final response = await http.post(
-      uri,
-      headers: {'content-type': 'application/json'},
-      body: jsonEncode({
-        'system_instruction': {
-          'parts': [
-            {'text': systemPrompt},
-          ],
-        },
-        'contents': [
-          {
-            'parts': [
-              {'text': userText},
-            ],
-          },
-        ],
-        // 💡 NEW: Injects temperature directly into the REST API call
-        'generationConfig': {
-          'responseMimeType': 'application/json',
-          'temperature': temperature,
-        },
-      }),
+    final responseText = await _generateWithFallback(
+      systemPrompt: systemPrompt,
+      temperature: temperature,
+      userText: userText,
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('Gemini API error ${response.statusCode}: ${response.body}');
-    }
-
-    final data = jsonDecode(response.body);
-    final candidates = data['candidates'] as List?;
-    if (candidates == null || candidates.isEmpty) {
-      throw Exception('No response from Gemini. Raw: ${response.body}');
-    }
-
-    final text = candidates[0]['content']['parts'][0]['text'] as String;
-    final parsed = jsonDecode(text) as Map<String, dynamic>;
+    final parsed = _parseJsonResponse(responseText);
 
     return WritingGuidance(
       guidance: parsed['guidance'] as String? ?? '',
       background: parsed['background'] as String? ?? '',
     );
+  }
+
+  Future<PoemAnalysis> analyzeStructure(String userText) async {
+    // Override the user's creativity temperature to 0.1 for strict, analytical rule-checking.
+    const double analyticalTemperature = 0.1;
+
+    const systemPrompt = '''
+You are a strict master of classical Chinese poetry form and structure (Gushi, Jueju, Lushi) and traditional English meter (Sonnets, Quatrains, Iambic Pentameter).
+Analyze the provided poem strictly for its structural integrity. Do NOT provide creative coaching.
+
+Step 1: Identify the intended classical form based on character/syllable count and line count. If it is modern free verse, state that.
+Step 2: Analyze the Tonal Pattern (Ping Ze / 平仄) for Chinese, or the meter for English. Does it follow traditional rules?
+Step 3: Analyze the Rhyme Scheme (Yayun / 押韵). Identify the rhyme category and check for any dropped rhymes.
+Step 4: List any specific characters or lines that violate the tonal or rhyming rules as an array of strings. If none, return an empty array.
+
+Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly this shape:
+{
+  "structureType": "e.g., Qiyan Jueju (Seven-character Quatrain)",
+  "tonalFeedback": "Detailed analysis of Ping Ze or meter...",
+  "rhymeFeedback": "Detailed analysis of the rhyme scheme...",
+  "ruleBreaks": ["Line 2: '风' breaks the Ping Ze rule", "Line 4: '月' does not rhyme"]
+}
+''';
+
+    final responseText = await _generateWithFallback(
+      systemPrompt: systemPrompt,
+      temperature: analyticalTemperature,
+      userText: userText,
+    );
+    final parsed = _parseJsonResponse(responseText);
+
+    return PoemAnalysis(
+      structureType: parsed['structureType'] as String? ?? 'Unknown Form',
+      tonalFeedback: parsed['tonalFeedback'] as String? ?? '',
+      rhymeFeedback: parsed['rhymeFeedback'] as String? ?? '',
+      ruleBreaks: List<String>.from(parsed['ruleBreaks'] ?? []),
+    );
+  }
+
+  /// Parses the raw JSON text returned by the model into a Map.
+  Map<String, dynamic> _parseJsonResponse(String responseText) {
+    if (responseText.isEmpty) {
+      throw Exception('No response from Gemini.');
+    }
+    return jsonDecode(responseText) as Map<String, dynamic>;
   }
 }

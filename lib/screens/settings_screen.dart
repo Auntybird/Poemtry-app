@@ -12,10 +12,10 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _storage = StorageService();
-  
+
   // Controllers
   final _apiKeyController = TextEditingController();
-  
+
   bool _obscureApiKey = true;
   bool _justSaved = false;
   bool _apiKeyPresent = false;
@@ -25,6 +25,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _temperature = StorageService.defaultTemperature;
 
   final List<Map<String, String>> _availableModels = [
+    {'value': 'gemini-2.0-flash', 'label': '2.0 Flash (Fast & Fluid)'},
+    {'value': 'gemini-2.0-flash-lite', 'label': '2.0 Flash Lite (Lightweight)'},
     {'value': 'gemini-1.5-flash', 'label': '1.5 Flash (Fast & Fluid)'},
     {'value': 'gemini-1.5-pro', 'label': '1.5 Pro (Deep & Insightful)'},
   ];
@@ -59,7 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       await _storage.saveApiKey(trimmedKey);
     }
-    
+
     await _storage.saveGeminiParams(
       model: _selectedModel,
       temperature: _temperature,
@@ -81,7 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       model: StorageService.defaultModel,
       temperature: StorageService.defaultTemperature,
     );
-    
+
     _apiKeyController.clear();
 
     setState(() {
@@ -106,7 +108,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
 
-    final apiKeyStatusColor = _apiKeyPresent ? AppColors.jade : AppColors.crimson;
+    final apiKeyStatusColor =
+        _apiKeyPresent ? AppColors.jade : AppColors.crimson;
 
     return Scaffold(
       backgroundColor: AppColors.ink,
@@ -125,21 +128,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   const Text(
                     'Gemini API Key',
-                    style: TextStyle(color: AppColors.paper, fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: AppColors.paper,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 10),
                   _buildStatusIndicator(apiKeyStatusColor),
                   const SizedBox(width: 6),
                   Text(
                     _apiKeyPresent ? 'Active' : 'Optional / Not set',
-                    style: TextStyle(color: apiKeyStatusColor, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: apiKeyStatusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 'Get a free key at aistudio.google.com. Stored locally.',
-                style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.paper.withOpacity(0.5), fontSize: 13),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -147,11 +157,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 obscureText: _obscureApiKey,
                 style: const TextStyle(color: AppColors.paper),
                 decoration: _buildInputDecoration(
-                  hintText: 'Paste your API key here', 
+                  hintText: 'Paste your API key here',
                   statusColor: apiKeyStatusColor,
                   suffixIcon: IconButton(
-                    icon: Icon(_obscureApiKey ? Icons.visibility_off : Icons.visibility, color: AppColors.paper.withOpacity(0.5)),
-                    onPressed: () => setState(() => _obscureApiKey = !_obscureApiKey),
+                    icon: Icon(
+                        _obscureApiKey
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: AppColors.paper.withOpacity(0.5)),
+                    onPressed: () =>
+                        setState(() => _obscureApiKey = !_obscureApiKey),
                   ),
                 ),
               ),
@@ -163,12 +178,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // ==========================================
               const Text(
                 'AI Model',
-                style: TextStyle(color: AppColors.paper, fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: AppColors.paper,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Text(
                 'Choose the brain powering your writing mentor.',
-                style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.paper.withOpacity(0.5), fontSize: 13),
               ),
               const SizedBox(height: 16),
               ListView.separated(
@@ -180,23 +199,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   final item = _availableModels[index];
                   final isSelected = _selectedModel == item['value'];
                   return InkWell(
-                    onTap: () => setState(() => _selectedModel = item['value']!),
+                    onTap: () =>
+                        setState(() => _selectedModel = item['value']!),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.gold.withOpacity(0.08) : AppColors.inkSurface,
+                        color: isSelected
+                            ? AppColors.gold.withOpacity(0.08)
+                            : AppColors.inkSurface,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isSelected ? AppColors.gold : AppColors.inkBorder),
+                        border: Border.all(
+                            color: isSelected
+                                ? AppColors.gold
+                                : AppColors.inkBorder),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: isSelected ? AppColors.gold : AppColors.paper.withOpacity(0.4),
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                            color: isSelected
+                                ? AppColors.gold
+                                : AppColors.paper.withOpacity(0.4),
                           ),
                           const SizedBox(width: 14),
-                          Text(item['label']!, style: TextStyle(color: isSelected ? AppColors.gold : AppColors.paper, fontSize: 15, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+                          Text(item['label']!,
+                              style: TextStyle(
+                                  color: isSelected
+                                      ? AppColors.gold
+                                      : AppColors.paper,
+                                  fontSize: 15,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400)),
                         ],
                       ),
                     ),
@@ -214,19 +251,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   const Text(
                     'Creativity Level',
-                    style: TextStyle(color: AppColors.paper, fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: AppColors.paper,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600),
                   ),
-                  Text(_temperature.toStringAsFixed(1), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text(_temperature.toStringAsFixed(1),
+                      style: const TextStyle(
+                          color: AppColors.gold,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 'Adjust how experimental the AI should be with its feedback.',
-                style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.paper.withOpacity(0.5), fontSize: 13),
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                 decoration: BoxDecoration(
                   color: AppColors.inkSurface,
                   borderRadius: BorderRadius.circular(12),
@@ -255,8 +301,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Analytical', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                          Text('Imaginative', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('Analytical',
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('Imaginative',
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 12)),
                         ],
                       ),
                     )
@@ -276,15 +326,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.seal,
                       foregroundColor: AppColors.paper,
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 28, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: Text(_justSaved ? 'Settings Saved ✨' : 'Save Settings'),
+                    child:
+                        Text(_justSaved ? 'Settings Saved ✨' : 'Save Settings'),
                   ),
                   const SizedBox(width: 12),
                   TextButton(
                     onPressed: _clearAll,
-                    child: Text('Reset', style: TextStyle(color: AppColors.paper.withOpacity(0.6))),
+                    child: Text('Reset',
+                        style:
+                            TextStyle(color: AppColors.paper.withOpacity(0.6))),
                   ),
                 ],
               ),
@@ -304,13 +359,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: statusColor,
-        boxShadow: [BoxShadow(color: statusColor.withOpacity(0.6), blurRadius: 6, spreadRadius: 1)],
+        boxShadow: [
+          BoxShadow(
+              color: statusColor.withOpacity(0.6),
+              blurRadius: 6,
+              spreadRadius: 1)
+        ],
       ),
     );
   }
 
   // Component extraction for input decorators to keep widget layout highly legible
-  InputDecoration _buildInputDecoration({required String hintText, required Color statusColor, Widget? suffixIcon}) {
+  InputDecoration _buildInputDecoration(
+      {required String hintText,
+      required Color statusColor,
+      Widget? suffixIcon}) {
     return InputDecoration(
       filled: true,
       fillColor: AppColors.inkSurface,

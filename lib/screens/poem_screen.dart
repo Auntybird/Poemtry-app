@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../models/history_entry.dart';
 import '../services/storage_service.dart';
+import '../services/audio_mentor_service.dart'; // 🌟 Added
 import '../theme/app_theme.dart';
-import '../widgets/poem_export_dialog.dart'; // Added import for the export dialog
+import '../widgets/poem_export_dialog.dart';
 
 class PoemScreen extends StatefulWidget {
   final HistoryEntry entry;
@@ -17,35 +18,56 @@ class PoemScreen extends StatefulWidget {
 
 class _PoemScreenState extends State<PoemScreen> {
   final _storage = StorageService();
+  final _audioService = AudioMentorService(); // 🌟 Added
+  
   late bool _isFavorite;
+  bool _isPlayingPoem = false;
+  bool _isPlayingGuidance = false;
 
   @override
   void initState() {
     super.initState();
-    _isFavorite = widget.entry.isFavorite;
+    _isFavorite = widget.entry.isFavorite; //
+    
+    // 🌟 Update visual indicators instantly when playback starts or stops
+    _audioService.onStateChanged = (isPlaying) {
+      if (mounted) {
+        setState(() {
+          if (!isPlaying) {
+            _isPlayingPoem = false;
+            _isPlayingGuidance = false;
+          }
+        });
+      }
+    };
+  }
+
+  @override
+  void dispose() {
+    _audioService.stop(); // Safe guard: halts playback if user hits back/closes screen
+    super.dispose();
   }
 
   Future<void> _toggleFavorite() async {
-    await _storage.toggleFavorite(widget.entry.id);
-    setState(() => _isFavorite = !_isFavorite);
+    await _storage.toggleFavorite(widget.entry.id); //
+    setState(() => _isFavorite = !_isFavorite); //
   }
 
   void _copyToClipboard() {
-    final text = '${widget.entry.poem}\n\n${widget.entry.explanation}';
-    Clipboard.setData(ClipboardData(text: text));
+    final text = '${widget.entry.poem}\n\n${widget.entry.explanation}'; //
+    Clipboard.setData(ClipboardData(text: text)); //
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied to clipboard'), backgroundColor: AppColors.inkSurfaceLight),
+      const SnackBar(content: Text('Copied to clipboard'), backgroundColor: AppColors.inkSurfaceLight), //
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
+    final entry = widget.entry; //
     return Scaffold(
-      backgroundColor: AppColors.ink,
+      backgroundColor: AppColors.ink, //
       appBar: AppBar(
         actions: [
-          // NEW: Export / Share button added here
           IconButton(
             icon: Icon(Icons.ios_share_rounded, color: AppColors.paper.withOpacity(0.7), size: 20),
             onPressed: () {
@@ -56,38 +78,54 @@ class _PoemScreenState extends State<PoemScreen> {
             },
           ),
           IconButton(
-            icon: Icon(Icons.copy_rounded, color: AppColors.paper.withOpacity(0.7), size: 20),
-            onPressed: _copyToClipboard,
+            icon: Icon(Icons.copy_rounded, color: AppColors.paper.withOpacity(0.7), size: 20), //
+            onPressed: _copyToClipboard, //
           ),
           IconButton(
             icon: Icon(
-              _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: _isFavorite ? AppColors.seal : AppColors.paper.withOpacity(0.6),
+              _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, //
+              color: _isFavorite ? AppColors.seal : AppColors.paper.withOpacity(0.6), //
             ),
-            onPressed: _toggleFavorite,
+            onPressed: _toggleFavorite, //
           ),
         ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12), //
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start, //
             children: [
               Row(
                 children: [
-                  _PersonaTag(name: entry.personaName, english: entry.personaEnglishName),
-                  const SizedBox(width: 8),
+                  _PersonaTag(name: entry.personaName, english: entry.personaEnglishName), //
+                  const SizedBox(width: 8), //
                   Icon(
-                    entry.type == 'written' ? Icons.edit_note_rounded : Icons.mic_rounded,
-                    size: 16,
+                    entry.type == 'written' ? Icons.edit_note_rounded : Icons.mic_rounded, //
+                    size: 16, //
                     color: AppColors.paper.withOpacity(0.4),
+                  ),
+                  const Spacer(),
+                  // 🌟 Main Playback node for scanning poem rhythms
+                  IconButton(
+                    icon: Icon(
+                      _isPlayingPoem ? Icons.stop_circle_rounded : Icons.play_circle_fill_rounded,
+                      color: AppColors.gold,
+                      size: 32,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isPlayingPoem = !_isPlayingPoem;
+                        _isPlayingGuidance = false;
+                      });
+                      _audioService.togglePlayback(entry.poem);
+                    },
                   ),
                 ],
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 16),
               Text(
-                entry.poem,
+                entry.poem, //
                 style: const TextStyle(
                   color: AppColors.paper,
                   fontSize: 22,
@@ -111,11 +149,30 @@ class _PoemScreenState extends State<PoemScreen> {
               ],
 
               if (entry.explanation.isNotEmpty) ...[
-                Text(
-                  entry.type == 'written' ? 'Guidance received' : 'Meaning',
-                  style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
+                Row(
+                  children: [
+                    Text(
+                      entry.type == 'written' ? 'Guidance received' : 'Meaning',
+                      style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1),
+                    ),
+                    const Spacer(),
+                    // 🌟 Secondary voice node for philosophical interpretation
+                    IconButton(
+                      icon: Icon(
+                        _isPlayingGuidance ? Icons.stop_rounded : Icons.volume_up_rounded,
+                        color: AppColors.paper.withOpacity(0.6),
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPlayingGuidance = !_isPlayingGuidance;
+                          _isPlayingPoem = false;
+                        });
+                        _audioService.togglePlayback(entry.explanation);
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
                 Text(entry.explanation, style: const TextStyle(color: AppColors.paper, fontSize: 15, height: 1.6)),
                 const SizedBox(height: 28),
               ],
@@ -133,7 +190,6 @@ class _PoemScreenState extends State<PoemScreen> {
 
 class _ReferenceSection extends StatelessWidget {
   final String text;
-
   const _ReferenceSection({required this.text});
 
   @override
@@ -141,25 +197,25 @@ class _ReferenceSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.violet.withOpacity(0.08),
+        color: AppColors.inkSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.violet.withOpacity(0.3)),
+        border: Border.all(color: AppColors.violet.withOpacity(0.3)), //
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start, //
         children: [
           Row(
             children: [
-              Icon(Icons.menu_book_outlined, size: 16, color: AppColors.violet.withOpacity(0.9)),
-              const SizedBox(width: 6),
+              Icon(Icons.menu_book_outlined, size: 16, color: AppColors.violet.withOpacity(0.9)), //
+              const SizedBox(width: 6), //
               Text(
-                'References & Background',
-                style: TextStyle(color: AppColors.violet.withOpacity(0.9), fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                'References & Background', //
+                style: TextStyle(color: AppColors.violet.withOpacity(0.9), fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.5), //
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(text, style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: 13.5, height: 1.55)),
+          const SizedBox(height: 8), //
+          Text(text, style: TextStyle(color: AppColors.paper.withOpacity(0.8), fontSize: 13.5, height: 1.55)), //
         ],
       ),
     );
@@ -169,19 +225,21 @@ class _ReferenceSection extends StatelessWidget {
 class _PersonaTag extends StatelessWidget {
   final String name;
   final String english;
-
   const _PersonaTag({required this.name, required this.english});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), //
       decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withOpacity(0.4)),
+        color: AppColors.gold.withOpacity(0.14), //
+        borderRadius: BorderRadius.circular(20), //
+        border: Border.all(color: AppColors.gold.withOpacity(0.3)),
       ),
-      child: Text('$name · $english', style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w500)),
+      child: Text(
+        '$name · $english',
+        style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

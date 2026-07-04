@@ -9,10 +9,40 @@ import '../models/poem_result.dart';
 import 'storage_service.dart';
 
 class GeminiPoemService {
+<<<<<<< Updated upstream
   // FIX: Removed the hardcoded _model constant entirely to enforce dynamic loading.
 
   final StorageService _storage = StorageService();
 
+=======
+  static const List<String> _supportedModels = [
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+  ];
+
+  final StorageService _storage = StorageService();
+
+  Future<String> _resolveModelName(String? preferredModel) async {
+    final trimmed = preferredModel?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return StorageService.defaultModel;
+    }
+
+    final ordered = <String>[trimmed];
+    for (final model in _supportedModels) {
+      if (model != trimmed && !ordered.contains(model)) {
+        ordered.add(model);
+      }
+    }
+    return ordered.firstWhere(
+      (model) => model.isNotEmpty,
+      orElse: () => StorageService.defaultModel,
+    );
+  }
+
+>>>>>>> Stashed changes
   // --- Daily Prompts Generation ---
   
   Future<List<String>> fetchWeeklyPrompts(String personaName, String philosophyDescription) async {
@@ -27,9 +57,9 @@ class GeminiPoemService {
       throw Exception('No Gemini API key set. Go to Settings and add your key.');
     }
 
-    final modelName = await _storage.getGeminiModel();
+    final modelName = await _resolveModelName(await _storage.getGeminiModel());
     final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey'
+      'https://generativelanguage.googleapis.com/v1/models/$modelName:generateContent?key=$apiKey',
     );
 
     final systemPrompt = '''
@@ -48,9 +78,15 @@ Prompt one here|||Prompt two here|||Prompt three here
         body: jsonEncode({
           'contents': [
             {
-              'parts': [{'text': systemPrompt}]
-            }
-          ]
+              'role': 'user',
+              'parts': [
+                {'text': systemPrompt},
+              ],
+            },
+          ],
+          'generationConfig': {
+            'temperature': 0.7,
+          },
         }),
       );
 
@@ -76,7 +112,11 @@ Prompt one here|||Prompt two here|||Prompt three here
         
         return prompts;
       } else {
+<<<<<<< Updated upstream
         throw Exception("Failed to contact Gemini (Error ${response.statusCode})");
+=======
+        throw Exception("Failed to contact Gemini: ${response.statusCode} - ${response.body}");
+>>>>>>> Stashed changes
       }
     } catch (e) {
       // Fallback prompts if absolutely everything fails
@@ -92,7 +132,7 @@ Prompt one here|||Prompt two here|||Prompt three here
     }
   }
 
-  // --- Original Audio-to-Poem ---
+  // --- Audio-to-Poem ---
 
   Future<PoemResult> generateFromAudio(String audioFilePath) async {
     final apiKey = await _storage.getApiKey();
@@ -107,8 +147,13 @@ Prompt one here|||Prompt two here|||Prompt three here
     final bytes = await File(audioFilePath).readAsBytes();
     final base64Audio = base64Encode(bytes);
 
+    final modelName = await _resolveModelName(await _storage.getGeminiModel());
     final uri = Uri.parse(
+<<<<<<< Updated upstream
       'https://generativelanguage.googleapis.com/v1beta/models/'
+=======
+      'https://generativelanguage.googleapis.com/v1/models/'
+>>>>>>> Stashed changes
       '$modelName:generateContent?key=$apiKey',
     );
 
@@ -131,14 +176,13 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
       uri,
       headers: {'content-type': 'application/json'},
       body: jsonEncode({
-        'system_instruction': {
-          'parts': [
-            {'text': systemPrompt},
-          ],
-        },
         'contents': [
           {
+            'role': 'user',
             'parts': [
+              {
+                'text': systemPrompt,
+              },
               {
                 'inline_data': {
                   'mime_type': 'audio/m4a',
@@ -149,7 +193,7 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
           },
         ],
         'generationConfig': {
-          'responseMimeType': 'application/json',
+          'temperature': 0.7,
         },
       }),
     );

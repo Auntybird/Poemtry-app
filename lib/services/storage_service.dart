@@ -7,12 +7,16 @@ import '../models/writing_draft.dart';
 class StorageService {
   static const _apiKeyPref = 'gemini_api_key';
   static const _historyPref = 'poem_history';
-  static const _draftsPref = 'writing_drafts_list'; 
-  
+  static const _draftsPref = 'writing_drafts_list';
+
   static const _modelPref = 'gemini_model';
   static const _temperaturePref = 'gemini_temperature';
 
+<<<<<<< Updated upstream
   // FIX: Removed 'gemini-1.5-flash'. Default is now 2.0-flash.
+=======
+  // Default values
+>>>>>>> Stashed changes
   static const String defaultModel = 'gemini-2.0-flash';
   static const double defaultTemperature = 0.7;
 
@@ -35,7 +39,8 @@ class StorageService {
 
   // --- Gemini Parameters Configuration ---
 
-  Future<void> saveGeminiParams({required String model, required double temperature}) async {
+  Future<void> saveGeminiParams(
+      {required String model, required double temperature}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_modelPref, model);
     await prefs.setDouble(_temperaturePref, temperature);
@@ -64,10 +69,14 @@ class StorageService {
     try {
       final Map<String, dynamic> cache = jsonDecode(cachedDataStr);
       final DateTime fetchedAt = DateTime.parse(cache['fetchedAt']);
+<<<<<<< Updated upstream
       
       // If cache is older than 7 days, return null to force a refresh
+=======
+
+>>>>>>> Stashed changes
       if (DateTime.now().difference(fetchedAt).inDays >= 7) {
-        return null; 
+        return null;
       }
 
       final List<dynamic> prompts = cache['prompts'];
@@ -75,10 +84,11 @@ class StorageService {
 
       return prompts.cast<String>();
     } catch (_) {
-      return null; 
+      return null;
     }
   }
 
+<<<<<<< Updated upstream
   Future<String?> getDailyPrompt(String personaName) async {
     final prompts = await getCachedWeeklyPrompts(personaName);
     if (prompts == null || prompts.isEmpty) return null;
@@ -88,9 +98,13 @@ class StorageService {
   }
 
   Future<void> saveWeeklyPrompts(String personaName, List<String> prompts) async {
+=======
+  Future<void> saveWeeklyPrompts(
+      String personaName, List<String> prompts) async {
+>>>>>>> Stashed changes
     final prefs = await SharedPreferences.getInstance();
     final cacheKey = 'prompts_cache_$personaName';
-    
+
     final cacheData = {
       'fetchedAt': DateTime.now().toIso8601String(),
       'prompts': prompts,
@@ -148,7 +162,8 @@ class StorageService {
 
   Future<void> _saveList(List<HistoryEntry> list) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_historyPref, jsonEncode(list.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+        _historyPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 
   // --- Multiple Notebook Drafts Management ---
@@ -158,7 +173,9 @@ class StorageService {
     final raw = prefs.getString(_draftsPref);
     if (raw == null || raw.isEmpty) return [];
     final decoded = jsonDecode(raw) as List;
-    final drafts = decoded.map((e) => WritingDraft.fromJson(e as Map<String, dynamic>)).toList();
+    final drafts = decoded
+        .map((e) => WritingDraft.fromJson(e as Map<String, dynamic>))
+        .toList();
     drafts.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return drafts;
   }
@@ -172,13 +189,15 @@ class StorageService {
       list.insert(0, draft);
     }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+        _draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 
   Future<void> deleteDraft(String id) async {
     final list = await getDrafts();
     list.removeWhere((d) => d.id == id);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+        _draftsPref, jsonEncode(list.map((e) => e.toJson()).toList()));
   }
 }

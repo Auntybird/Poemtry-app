@@ -6,11 +6,13 @@ import '../models/history_entry.dart';
 import '../models/persona.dart';
 import '../models/writing_draft.dart';
 import '../services/gemini_text_service.dart';
-import '../services/gemini_service.dart'; // NEW: Imported for prompt generator
+import '../services/gemini_service.dart'; 
 import '../services/storage_service.dart';
+import '../services/audio_mentor_service.dart'; // 🌟 NEW: Imported Audio Service
 import '../theme/app_theme.dart';
-import '../widgets/poetic_prompt_banner.dart'; // NEW: Imported Banner Widget
+import '../widgets/poetic_prompt_banner.dart'; 
 import 'poem_screen.dart';
+import '../services/image_generation_service.dart';
 
 class WriteScreen extends StatefulWidget {
   final WritingDraft? existingDraft;
@@ -25,32 +27,53 @@ class WriteScreen extends StatefulWidget {
 class _WriteScreenState extends State<WriteScreen> {
   final _controller = TextEditingController();
   final _service = GeminiTextService();
-  final _poemService = GeminiPoemService(); // NEW
+  final _poemService = GeminiPoemService(); 
   final _storage = StorageService();
+  final _audioService = AudioMentorService();
+  final _imageService = ImageGenerationService();   // <-- NEW
 
   String _currentDraftId = DateTime.now().millisecondsSinceEpoch.toString();
   bool _isEditingCompletedEntry = false;
 
   Persona _selectedPersona = personas.first;
+  
   bool _loadingGuidance = false;
+  bool _analyzingStructure = false; 
   bool _completing = false;
   bool _restoringDraft = true;
   bool _justSaved = false;
   
-  // NEW: State for Daily Prompt Banner
   String _currentPrompt = "Listening to the universe...";
   bool _isPromptLoading = false;
 
   String? _guidance;
   String? _background;
+  PoemAnalysis? _structuralAnalysis; 
   String? _error;
   Timer? _debounce;
+  bool _isPlayingGuidance = false; // 🌟 NEW: Track audio state
 
   @override
   void initState() {
     super.initState();
     _restoreDraft();
     _controller.addListener(_onTextChanged);
+
+    // 🌟 NEW: Listen for audio state changes to update the UI play/stop icons
+    _audioService.onStateChanged = (isPlaying) {
+      if (mounted) {
+        setState(() => _isPlayingGuidance = isPlaying);
+      }
+    };
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.removeListener(_onTextChanged);
+    _controller.dispose();
+    _audioService.stop(); // 🌟 NEW: Stop talking if the user leaves the screen!
+    super.dispose();
   }
 
   Future<void> _restoreDraft() async {
@@ -92,12 +115,9 @@ class _WriteScreenState extends State<WriteScreen> {
       }
     }
     setState(() => _restoringDraft = false);
-    
-    // NEW: Load the daily prompt for the recovered persona
     _loadDailyPrompt();
   }
   
-  // NEW: Loads or caches the daily prompt based on current persona
   Future<void> _loadDailyPrompt() async {
     setState(() => _isPromptLoading = true);
     
@@ -135,6 +155,10 @@ class _WriteScreenState extends State<WriteScreen> {
   void _onTextChanged() {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 800), _persistDraft);
+    // Clear analysis output when user starts editing again
+    if (_structuralAnalysis != null) {
+      setState(() => _structuralAnalysis = null);
+    }
   }
 
   Future<void> _persistDraft() async {
@@ -181,6 +205,7 @@ class _WriteScreenState extends State<WriteScreen> {
     setState(() {
       _loadingGuidance = true;
       _error = null;
+      _structuralAnalysis = null; // Hide structure output if getting creative feedback
     });
 
     try {
@@ -197,56 +222,97 @@ class _WriteScreenState extends State<WriteScreen> {
     }
   }
 
-  Future<void> _markCompleted() async {
+  Future<void> _analyzeStructure() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) {
-      setState(() => _error = 'Write something before marking it complete.');
-      return;
+    if (text.isEmpty) return;
+
+    setState(() {
+      _analyzingStructure = true;
+      _error = null;
+    });
+
+    try {
+      final analysis = await _service.analyzeStructure(text);
+      setState(() {
+        _structuralAnalysis = analysis;
+      });
+    } catch (e) {
+      setState(() => _error = '$e');
+    } finally {
+      setState(() => _analyzingStructure = false);
     }
+  }
 
-    setState(() => _completing = true);
+  Future<void> _markCompleted() async {
+  final text = _controller.text.trim();
 
-    HistoryEntry entry;
-    if (_isEditingCompletedEntry && widget.existingEntry != null) {
-      entry = HistoryEntry(
-        id: _currentDraftId,
-        timestamp: widget.existingEntry!.timestamp,
-        personaName: _selectedPersona.name,
-        personaEnglishName: _selectedPersona.englishName,
-        transcript: widget.existingEntry!.transcript,
-        poem: text,
-        explanation: _guidance ?? '',
-        background: _background ?? '',
-        type: widget.existingEntry!.type,
-        isFavorite: widget.existingEntry!.isFavorite,
-      );
-      await _storage.updateHistoryEntry(entry);
-    } else {
-      entry = HistoryEntry(
-        id: _currentDraftId,
-        timestamp: DateTime.now(),
-        personaName: _selectedPersona.name,
-        personaEnglishName: _selectedPersona.englishName,
-        transcript: text,
-        poem: text,
-        explanation: _guidance ?? '',
-        background: _background ?? '',
-        type: 'written',
-      );
-      await _storage.addHistoryEntry(entry);
-      await _storage.deleteDraft(_currentDraftId);
-    }
+  if (text.isEmpty) {
+    setState(() => _error = 'Write something before marking it complete.');
+    return;
+  }
 
-    if (!mounted) return;
-    setState(() => _completing = false);
+  setState(() => _completing = true);
 
-    _controller.removeListener(_onTextChanged);
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PoemScreen(entry: entry)),
+  HistoryEntry entry;
+
+  if (_isEditingCompletedEntry && widget.existingEntry != null) {
+    // Preserve old image when editing an existing poem
+    entry = HistoryEntry(
+      id: _currentDraftId,
+      timestamp: widget.existingEntry!.timestamp,
+      personaName: _selectedPersona.name,
+      personaEnglishName: _selectedPersona.englishName,
+      transcript: widget.existingEntry!.transcript,
+      poem: text,
+      explanation: _guidance ?? '',
+      background: _background ?? '',
+      type: widget.existingEntry!.type,
+      isFavorite: widget.existingEntry!.isFavorite,
+      imageUrl: widget.existingEntry!.imageUrl,
     );
 
-    _startNewDraftWorkspace();
+    await _storage.updateHistoryEntry(entry);
+  } else {
+    // Generate Shan Shui image
+    String? imageUrl;
+
+    try {
+      imageUrl = await _imageService.generateShanshuiPainting(text);
+    } catch (e) {
+      debugPrint("Image generation failed: $e");
+    }
+
+    entry = HistoryEntry(
+      id: _currentDraftId,
+      timestamp: DateTime.now(),
+      personaName: _selectedPersona.name,
+      personaEnglishName: _selectedPersona.englishName,
+      transcript: text,
+      poem: text,
+      explanation: _guidance ?? '',
+      background: _background ?? '',
+      type: 'written',
+      imageUrl: imageUrl,
+    );
+
+    await _storage.addHistoryEntry(entry);
+    await _storage.deleteDraft(_currentDraftId);
   }
+
+  if (!mounted) return;
+
+  setState(() => _completing = false);
+
+  _controller.removeListener(_onTextChanged);
+
+  await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => PoemScreen(entry: entry),
+    ),
+  );
+
+  _startNewDraftWorkspace();
+}
 
   void _startNewDraftWorkspace() {
     _controller.removeListener(_onTextChanged);
@@ -256,6 +322,7 @@ class _WriteScreenState extends State<WriteScreen> {
       _isEditingCompletedEntry = false;
       _guidance = null;
       _background = null;
+      _structuralAnalysis = null;
       _error = null;
     });
     _controller.addListener(_onTextChanged);
@@ -319,11 +386,10 @@ class _WriteScreenState extends State<WriteScreen> {
                                 _selectedPersona = personas.firstWhere((p) => p.name == d.personaName, orElse: () => personas.first);
                                 _guidance = d.guidance;
                                 _background = d.background;
+                                _structuralAnalysis = null;
                               });
                               _controller.addListener(_onTextChanged);
-                              
-                              // NEW: Reload the prompt based on the restored draft's persona
-                              _loadDailyPrompt();
+                              _loadDailyPrompt(); 
                             },
                           );
                         },
@@ -336,14 +402,6 @@ class _WriteScreenState extends State<WriteScreen> {
         );
       },
     );
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.removeListener(_onTextChanged);
-    _controller.dispose();
-    super.dispose();
   }
 
   @override
@@ -394,19 +452,16 @@ class _WriteScreenState extends State<WriteScreen> {
                 onChanged: (p) {
                   setState(() => _selectedPersona = p);
                   _persistDraft();
-                  _loadDailyPrompt(); // NEW: Reload prompt when user picks a new persona
+                  _loadDailyPrompt(); 
                 },
               ),
               const SizedBox(height: 24),
-
-              // NEW: Render the Banner directly into your notebook view
               PoeticPromptBanner(
                 promptText: _currentPrompt,
                 personaName: _selectedPersona.name,
                 isLoading: _isPromptLoading,
               ),
               const SizedBox(height: 20),
-              
               if (_background != null && _background!.isNotEmpty) ...[
                 _BackgroundCard(text: _background!),
                 const SizedBox(height: 20),
@@ -416,25 +471,49 @@ class _WriteScreenState extends State<WriteScreen> {
               const SizedBox(height: 10),
               _NotebookField(controller: _controller),
               const SizedBox(height: 18),
+              
               _ActionButtons(
                 loadingGuidance: _loadingGuidance,
+                analyzingStructure: _analyzingStructure,
                 completing: _completing,
                 onGetGuidance: _getGuidance,
+                onAnalyzeStructure: _analyzeStructure,
                 onMarkCompleted: _markCompleted,
               ),
+              
               if (_error != null) ...[
                 const SizedBox(height: 14),
                 Text(_error!, style: const TextStyle(color: AppColors.crimson, fontSize: 13)),
               ],
+
+              if (_structuralAnalysis != null) ...[
+                const SizedBox(height: 28),
+                _AnalysisCard(analysis: _structuralAnalysis!),
+              ],
+
               if (_guidance != null && _guidance!.isNotEmpty) ...[
                 const SizedBox(height: 28),
                 Container(height: 1, color: AppColors.inkBorder),
                 const SizedBox(height: 20),
+                // 🌟 NEW: Speaker icon inline with the Guidance header
                 Row(
                   children: [
                     Icon(Icons.tips_and_updates_outlined, size: 16, color: AppColors.violet.withOpacity(0.8)),
                     const SizedBox(width: 6),
-                    Flexible(child: Text('Guidance', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1))),
+                    Text('Guidance', style: TextStyle(color: AppColors.paper.withOpacity(0.5), fontSize: 13, letterSpacing: 1)),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        _isPlayingGuidance ? Icons.stop_rounded : Icons.volume_up_rounded,
+                        color: AppColors.violet.withOpacity(0.8),
+                        size: 20,
+                      ),
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        _audioService.togglePlayback(_guidance!);
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -444,6 +523,61 @@ class _WriteScreenState extends State<WriteScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AnalysisCard extends StatelessWidget {
+  final PoemAnalysis analysis;
+  const _AnalysisCard({required this.analysis});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.inkSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.inkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.rule_rounded, size: 16, color: AppColors.gold.withOpacity(0.9)),
+              const SizedBox(width: 6),
+              Text(
+                'Structural Analysis: ${analysis.structureType}',
+                style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(analysis.tonalFeedback, style: const TextStyle(color: AppColors.paper, fontSize: 14, height: 1.5)),
+          const SizedBox(height: 8),
+          Text(analysis.rhymeFeedback, style: const TextStyle(color: AppColors.paper, fontSize: 14, height: 1.5)),
+          
+          if (analysis.ruleBreaks.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text('Rule Violations:', style: TextStyle(color: AppColors.crimson, fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            ...analysis.ruleBreaks.map((rule) => Padding(
+              padding: const EdgeInsets.only(bottom: 4.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('• ', style: TextStyle(color: AppColors.crimson)),
+                  Expanded(child: Text(rule, style: TextStyle(color: AppColors.crimson.withOpacity(0.9), fontSize: 14))),
+                ],
+              ),
+            )),
+          ] else ...[
+            const SizedBox(height: 16),
+            const Text('✨ Structure is technically flawless.', style: TextStyle(color: AppColors.jade, fontSize: 13, fontWeight: FontWeight.w600)),
+          ]
+        ],
       ),
     );
   }
@@ -496,32 +630,60 @@ class _NotebookField extends StatelessWidget {
 
 class _ActionButtons extends StatelessWidget {
   final bool loadingGuidance;
+  final bool analyzingStructure;
   final bool completing;
+  
   final VoidCallback onGetGuidance;
+  final VoidCallback onAnalyzeStructure;
   final VoidCallback onMarkCompleted;
-  const _ActionButtons({required this.loadingGuidance, required this.completing, required this.onGetGuidance, required this.onMarkCompleted});
+
+  const _ActionButtons({
+    required this.loadingGuidance, 
+    required this.analyzingStructure, 
+    required this.completing, 
+    required this.onGetGuidance, 
+    required this.onAnalyzeStructure, 
+    required this.onMarkCompleted
+  });
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 360;
-        final fontSize = isNarrow ? 13.0 : 14.0;
-        final vPad = isNarrow ? 13.0 : 16.0;
-        final guidanceButton = OutlinedButton(
-          onPressed: loadingGuidance ? null : onGetGuidance,
-          style: OutlinedButton.styleFrom(foregroundColor: AppColors.gold, side: BorderSide(color: AppColors.gold.withOpacity(0.5)), padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-          child: loadingGuidance ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)) : FittedBox(child: Text('Get Guidance', style: TextStyle(fontSize: fontSize))),
-        );
-        final completeButton = ElevatedButton(
-          onPressed: completing ? null : onMarkCompleted,
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.seal, foregroundColor: AppColors.paper, padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-          child: completing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.paper)) : FittedBox(child: Text('Mark as Completed', style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize))),
-        );
-        if (isNarrow) {
-          return Column(children: [SizedBox(width: double.infinity, child: completeButton), const SizedBox(height: 10), SizedBox(width: double.infinity, child: guidanceButton)]);
-        }
-        return Row(children: [Expanded(child: guidanceButton), const SizedBox(width: 12), Expanded(child: completeButton)]);
-      },
+    final fontSize = 13.0;
+    final vPad = 14.0;
+
+    final guidanceButton = OutlinedButton(
+      onPressed: (loadingGuidance || analyzingStructure) ? null : onGetGuidance,
+      style: OutlinedButton.styleFrom(foregroundColor: AppColors.gold, side: BorderSide(color: AppColors.gold.withOpacity(0.5)), padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      child: loadingGuidance ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)) : FittedBox(child: Text('Get Guidance', style: TextStyle(fontSize: fontSize))),
+    );
+    
+    final analyzeButton = OutlinedButton(
+      onPressed: (loadingGuidance || analyzingStructure) ? null : onAnalyzeStructure,
+      style: OutlinedButton.styleFrom(foregroundColor: AppColors.gold, side: BorderSide(color: AppColors.gold.withOpacity(0.5)), padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      child: analyzingStructure ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)) : FittedBox(child: Text('Analyze Structure', style: TextStyle(fontSize: fontSize))),
+    );
+
+    final completeButton = ElevatedButton(
+      onPressed: completing ? null : onMarkCompleted,
+      style: ElevatedButton.styleFrom(backgroundColor: AppColors.seal, foregroundColor: AppColors.paper, padding: EdgeInsets.symmetric(vertical: vPad), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      child: completing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.paper)) : FittedBox(child: Text('Mark as Completed', style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize))),
+    );
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: guidanceButton),
+            const SizedBox(width: 12),
+            Expanded(child: analyzeButton),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: completeButton,
+        ),
+      ],
     );
   }
 }

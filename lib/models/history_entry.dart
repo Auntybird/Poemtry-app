@@ -7,8 +7,9 @@ class HistoryEntry {
   final String poem;
   final String explanation;
   final String background;
-  final String type; // 'voice' or 'written'
+  final String type;
   final bool isFavorite;
+  final String? imageUrl; // 🌟 New field
 
   const HistoryEntry({
     required this.id,
@@ -21,9 +22,10 @@ class HistoryEntry {
     this.background = '',
     this.type = 'voice',
     this.isFavorite = false,
+    this.imageUrl, // 🌟 Updated
   });
 
-  HistoryEntry copyWith({bool? isFavorite}) => HistoryEntry(
+  HistoryEntry copyWith({bool? isFavorite, String? imageUrl}) => HistoryEntry(
         id: id,
         timestamp: timestamp,
         personaName: personaName,
@@ -34,6 +36,7 @@ class HistoryEntry {
         background: background,
         type: type,
         isFavorite: isFavorite ?? this.isFavorite,
+        imageUrl: imageUrl ?? this.imageUrl, // 🌟 Updated
       );
 
   Map<String, dynamic> toJson() => {
@@ -47,6 +50,7 @@ class HistoryEntry {
         'background': background,
         'type': type,
         'isFavorite': isFavorite,
+        'imageUrl': imageUrl, // 🌟 Updated
       };
 
   factory HistoryEntry.fromJson(Map<String, dynamic> json) => HistoryEntry(
@@ -60,5 +64,6 @@ class HistoryEntry {
         background: json['background'] as String? ?? '',
         type: json['type'] as String? ?? 'voice',
         isFavorite: json['isFavorite'] as bool? ?? false,
+        imageUrl: json['imageUrl'] as String?, // 🌟 Updated
       );
 }
