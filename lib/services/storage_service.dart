@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/history_entry.dart';
@@ -13,8 +12,8 @@ class StorageService {
   static const _modelPref = 'gemini_model';
   static const _temperaturePref = 'gemini_temperature';
 
-  // Default values
-  static const String defaultModel = 'gemini-1.5-flash';
+  // FIX: Removed 'gemini-1.5-flash'. Default is now 2.0-flash.
+  static const String defaultModel = 'gemini-2.0-flash';
   static const double defaultTemperature = 0.7;
 
   // --- Gemini API Key ---
@@ -52,9 +51,10 @@ class StorageService {
     return prefs.getDouble(_temperaturePref) ?? defaultTemperature;
   }
 
-  // --- Daily Prompts Cache (NEW) ---
+  // --- Daily Prompts Cache ---
 
-  Future<String?> getDailyPrompt(String personaName) async {
+  // Helper to get the full cached list for ai_service.dart
+  Future<List<String>?> getCachedWeeklyPrompts(String personaName) async {
     final prefs = await SharedPreferences.getInstance();
     final cacheKey = 'prompts_cache_$personaName';
     final cachedDataStr = prefs.getString(cacheKey);
@@ -65,6 +65,7 @@ class StorageService {
       final Map<String, dynamic> cache = jsonDecode(cachedDataStr);
       final DateTime fetchedAt = DateTime.parse(cache['fetchedAt']);
       
+      // If cache is older than 7 days, return null to force a refresh
       if (DateTime.now().difference(fetchedAt).inDays >= 7) {
         return null; 
       }
@@ -72,11 +73,18 @@ class StorageService {
       final List<dynamic> prompts = cache['prompts'];
       if (prompts.isEmpty) return null;
 
-      int dayIndex = (DateTime.now().weekday - 1) % prompts.length;
-      return prompts[dayIndex] as String;
+      return prompts.cast<String>();
     } catch (_) {
       return null; 
     }
+  }
+
+  Future<String?> getDailyPrompt(String personaName) async {
+    final prompts = await getCachedWeeklyPrompts(personaName);
+    if (prompts == null || prompts.isEmpty) return null;
+
+    int dayIndex = (DateTime.now().weekday - 1) % prompts.length;
+    return prompts[dayIndex];
   }
 
   Future<void> saveWeeklyPrompts(String personaName, List<String> prompts) async {
