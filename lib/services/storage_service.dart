@@ -12,12 +12,8 @@ class StorageService {
   static const _modelPref = 'gemini_model';
   static const _temperaturePref = 'gemini_temperature';
 
-<<<<<<< Updated upstream
-  // FIX: Removed 'gemini-1.5-flash'. Default is now 2.0-flash.
-=======
-  // Default values
->>>>>>> Stashed changes
-  static const String defaultModel = 'gemini-2.0-flash';
+  // 🌟 Default is now 2.0-flash-lite for better daily inspiration limits
+  static const String defaultModel = 'gemini-2.0-flash-lite';
   static const double defaultTemperature = 0.7;
 
   // --- Gemini API Key ---
@@ -39,8 +35,7 @@ class StorageService {
 
   // --- Gemini Parameters Configuration ---
 
-  Future<void> saveGeminiParams(
-      {required String model, required double temperature}) async {
+  Future<void> saveGeminiParams({required String model, required double temperature}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_modelPref, model);
     await prefs.setDouble(_temperaturePref, temperature);
@@ -58,7 +53,6 @@ class StorageService {
 
   // --- Daily Prompts Cache ---
 
-  // Helper to get the full cached list for ai_service.dart
   Future<List<String>?> getCachedWeeklyPrompts(String personaName) async {
     final prefs = await SharedPreferences.getInstance();
     final cacheKey = 'prompts_cache_$personaName';
@@ -69,12 +63,7 @@ class StorageService {
     try {
       final Map<String, dynamic> cache = jsonDecode(cachedDataStr);
       final DateTime fetchedAt = DateTime.parse(cache['fetchedAt']);
-<<<<<<< Updated upstream
-      
-      // If cache is older than 7 days, return null to force a refresh
-=======
 
->>>>>>> Stashed changes
       if (DateTime.now().difference(fetchedAt).inDays >= 7) {
         return null;
       }
@@ -88,7 +77,6 @@ class StorageService {
     }
   }
 
-<<<<<<< Updated upstream
   Future<String?> getDailyPrompt(String personaName) async {
     final prompts = await getCachedWeeklyPrompts(personaName);
     if (prompts == null || prompts.isEmpty) return null;
@@ -98,10 +86,6 @@ class StorageService {
   }
 
   Future<void> saveWeeklyPrompts(String personaName, List<String> prompts) async {
-=======
-  Future<void> saveWeeklyPrompts(
-      String personaName, List<String> prompts) async {
->>>>>>> Stashed changes
     final prefs = await SharedPreferences.getInstance();
     final cacheKey = 'prompts_cache_$personaName';
 

@@ -25,10 +25,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _temperature = StorageService.defaultTemperature;
 
   final List<Map<String, String>> _availableModels = [
+    {'value': 'gemini-2.0-flash-lite', 'label': '2.0 Flash Lite (Daily Default)'},
     {'value': 'gemini-2.0-flash', 'label': '2.0 Flash (Fast & Fluid)'},
-    {'value': 'gemini-2.0-flash-lite', 'label': '2.0 Flash Lite (Lightweight)'},
-    {'value': 'gemini-1.5-flash', 'label': '1.5 Flash (Fast & Fluid)'},
-    {'value': 'gemini-1.5-pro', 'label': '1.5 Pro (Deep & Insightful)'},
   ];
 
   @override
@@ -46,7 +44,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         if (apiKey != null) _apiKeyController.text = apiKey;
         _apiKeyPresent = apiKey != null && apiKey.isNotEmpty;
-        _selectedModel = model;
+        
+        if (_availableModels.any((m) => m['value'] == model)) {
+          _selectedModel = model;
+        } else {
+          _selectedModel = StorageService.defaultModel;
+        }
+        
         _temperature = temp;
         _isLoading = false;
       });
@@ -114,16 +118,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.ink,
       appBar: AppBar(title: const Text('Settings')),
-      // Wrapped in a scroll view so the viewport scales beautifully when the keyboard jumps up
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ==========================================
-              // FIELD 1: GEMINI API KEY
-              // ==========================================
               Row(
                 children: [
                   const Text(
@@ -173,9 +173,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
-              // ==========================================
-              // FIELD 2: MODEL SELECTION
-              // ==========================================
               const Text(
                 'AI Model',
                 style: TextStyle(
@@ -243,9 +240,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
-              // ==========================================
-              // FIELD 3: TEMPERATURE CONTROL
-              // ==========================================
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -316,9 +310,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 40),
 
-              // ==========================================
-              // UNIFIED ACTION BUTTONS
-              // ==========================================
               Row(
                 children: [
                   ElevatedButton(
@@ -351,7 +342,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Visual helper to build matching neon glow indicator dots
   Widget _buildStatusIndicator(Color statusColor) {
     return Container(
       width: 9,
@@ -369,7 +359,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Component extraction for input decorators to keep widget layout highly legible
   InputDecoration _buildInputDecoration(
       {required String hintText,
       required Color statusColor,

@@ -9,17 +9,9 @@ import '../models/poem_result.dart';
 import 'storage_service.dart';
 
 class GeminiPoemService {
-<<<<<<< Updated upstream
-  // FIX: Removed the hardcoded _model constant entirely to enforce dynamic loading.
-
-  final StorageService _storage = StorageService();
-
-=======
   static const List<String> _supportedModels = [
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
   ];
 
   final StorageService _storage = StorageService();
@@ -30,23 +22,15 @@ class GeminiPoemService {
       return StorageService.defaultModel;
     }
 
-    final ordered = <String>[trimmed];
-    for (final model in _supportedModels) {
-      if (model != trimmed && !ordered.contains(model)) {
-        ordered.add(model);
-      }
+    if (_supportedModels.contains(trimmed)) {
+      return trimmed;
     }
-    return ordered.firstWhere(
-      (model) => model.isNotEmpty,
-      orElse: () => StorageService.defaultModel,
-    );
+    return StorageService.defaultModel;
   }
 
->>>>>>> Stashed changes
   // --- Daily Prompts Generation ---
   
   Future<List<String>> fetchWeeklyPrompts(String personaName, String philosophyDescription) async {
-    // FIX: Check cache BEFORE calling the API to save rate limits
     final cachedPrompts = await _storage.getCachedWeeklyPrompts(personaName);
     if (cachedPrompts != null && cachedPrompts.isNotEmpty) {
       return cachedPrompts;
@@ -90,9 +74,8 @@ Prompt one here|||Prompt two here|||Prompt three here
         }),
       );
 
-      // FIX: Graceful Rate Limit Handling
       if (response.statusCode == 429) {
-        throw Exception('The AI is currently meditating to gather inspiration (Rate Limit). Please wait a moment and try again.');
+        throw Exception('Rate Limit');
       }
 
       if (response.statusCode == 200) {
@@ -107,16 +90,10 @@ Prompt one here|||Prompt two here|||Prompt three here
 
         if (prompts.isEmpty) throw Exception("Malformed AI response");
         
-        // FIX: Save the successful response to the cache
         await _storage.saveWeeklyPrompts(personaName, prompts);
-        
         return prompts;
       } else {
-<<<<<<< Updated upstream
-        throw Exception("Failed to contact Gemini (Error ${response.statusCode})");
-=======
-        throw Exception("Failed to contact Gemini: ${response.statusCode} - ${response.body}");
->>>>>>> Stashed changes
+        throw Exception("Failed to contact Gemini: ${response.statusCode}");
       }
     } catch (e) {
       // Fallback prompts if absolutely everything fails
@@ -140,21 +117,34 @@ Prompt one here|||Prompt two here|||Prompt three here
       throw Exception('No Gemini API key set. Go to Settings and add your key.');
     }
 
-    // FIX: Dynamically fetch the model here so user settings apply to the audio feature too!
-    final modelName = await _storage.getGeminiModel();
+    final savedModel = await _storage.getGeminiModel();
+    final targetModel = await _resolveModelName(savedModel);
     final persona = personas[Random().nextInt(personas.length)];
 
+    try {
+      // Attempt generation with preferred model
+      return await _executeAudioRequest(audioFilePath, persona, apiKey, targetModel);
+    } catch (e) {
+      // 🌟 SMART FALLBACK: If rate limited and we aren't already using lite, try lite.
+      if (e.toString().contains('Rate Limit') && targetModel != 'gemini-2.0-flash-lite') {
+        try {
+          return await _executeAudioRequest(audioFilePath, persona, apiKey, 'gemini-2.0-flash-lite');
+        } catch (fallbackError) {
+          throw Exception('The AI is exhausted for the day (Rate Limit). Please wait until tomorrow or provide a new API key.');
+        }
+      } else if (e.toString().contains('Rate Limit')) {
+        throw Exception('The AI is exhausted for the day (Rate Limit). Please wait until tomorrow or provide a new API key.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<PoemResult> _executeAudioRequest(String audioFilePath, Persona persona, String apiKey, String modelName) async {
     final bytes = await File(audioFilePath).readAsBytes();
     final base64Audio = base64Encode(bytes);
 
-    final modelName = await _resolveModelName(await _storage.getGeminiModel());
     final uri = Uri.parse(
-<<<<<<< Updated upstream
-      'https://generativelanguage.googleapis.com/v1beta/models/'
-=======
-      'https://generativelanguage.googleapis.com/v1/models/'
->>>>>>> Stashed changes
-      '$modelName:generateContent?key=$apiKey',
+      'https://generativelanguage.googleapis.com/v1/models/$modelName:generateContent?key=$apiKey',
     );
 
     final systemPrompt = '''
@@ -198,11 +188,9 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
       }),
     );
 
-    // FIX: Graceful Rate Limit Catching
     if (response.statusCode == 429) {
-      throw Exception('The AI is currently meditating to gather inspiration (Rate Limit). Please wait a moment and try again.');
+      throw Exception('Rate Limit');
     } else if (response.statusCode != 200) {
-      // Hide the massive JSON blob from the user interface
       throw Exception('The winds of inspiration failed us (Error ${response.statusCode}). Please try again later.');
     }
 
@@ -213,7 +201,10 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
     }
 
     final text = candidates[0]['content']['parts'][0]['text'] as String;
-    final parsed = jsonDecode(text) as Map<String, dynamic>;
+    
+    // Clean up markdown block if Gemini accidentally wraps it
+    final cleanText = text.replaceAll('```json', '').replaceAll('```', '').trim();
+    final parsed = jsonDecode(cleanText) as Map<String, dynamic>;
 
     return PoemResult(
       personaName: persona.name,

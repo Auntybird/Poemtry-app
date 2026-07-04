@@ -30,8 +30,6 @@ class GeminiTextService {
   static const List<String> supportedModels = [
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
   ];
 
   final StorageService _storage = StorageService();
@@ -157,7 +155,6 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
   }
 
   Future<PoemAnalysis> analyzeStructure(String userText) async {
-    // Override the user's creativity temperature to 0.1 for strict, analytical rule-checking.
     const double analyticalTemperature = 0.1;
 
     const systemPrompt = '''
@@ -193,7 +190,6 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
     );
   }
 
-  /// Parses the raw JSON text returned by the model into a Map.
   Map<String, dynamic> _parseJsonResponse(String responseText) {
     if (responseText.isEmpty) {
       throw Exception('No response from Gemini.');
