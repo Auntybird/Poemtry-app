@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/persona.dart';
 import '../models/poem_result.dart';
+import '../utils/gemini_rate_limit.dart';
 import 'storage_service.dart';
 
 class GeminiPoemService {
@@ -126,14 +127,18 @@ Prompt one here|||Prompt two here|||Prompt three here
       return await _executeAudioRequest(audioFilePath, persona, apiKey, targetModel);
     } catch (e) {
       // 🌟 SMART FALLBACK: If rate limited and we aren't already using lite, try lite.
-      if (e.toString().contains('Rate Limit') && targetModel != 'gemini-2.0-flash-lite') {
+      if (e is GeminiRateLimitException && targetModel != 'gemini-2.0-flash-lite') {
         try {
           return await _executeAudioRequest(audioFilePath, persona, apiKey, 'gemini-2.0-flash-lite');
         } catch (fallbackError) {
-          throw Exception('The AI is exhausted for the day (Rate Limit). Please wait until tomorrow or provide a new API key.');
+          // Prefer info from whichever error actually carries a parseable body.
+          final infoSource = fallbackError is GeminiRateLimitException
+              ? fallbackError.responseBody
+              : e.responseBody;
+          throw Exception(formatRateLimitMessage(parseRateLimitInfo(infoSource)));
         }
-      } else if (e.toString().contains('Rate Limit')) {
-        throw Exception('The AI is exhausted for the day (Rate Limit). Please wait until tomorrow or provide a new API key.');
+      } else if (e is GeminiRateLimitException) {
+        throw Exception(formatRateLimitMessage(parseRateLimitInfo(e.responseBody)));
       }
       rethrow;
     }
@@ -189,7 +194,7 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
     );
 
     if (response.statusCode == 429) {
-      throw Exception('Rate Limit');
+      throw GeminiRateLimitException(response.body);
     } else if (response.statusCode != 200) {
       throw Exception('The winds of inspiration failed us (Error ${response.statusCode}). Please try again later.');
     }

@@ -14,7 +14,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>poem_app</string>
+	<string>Prosody Eng.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Prosody Eng.</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

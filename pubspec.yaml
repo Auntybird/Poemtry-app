@@ -37,3 +37,4 @@ flutter_launcher_icons:
   ios: true
   image_path: "lib/assets/icon.png" # Updated to reflect your folder structure
   min_sdk_android: 21
+

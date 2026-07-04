@@ -71,6 +71,7 @@ class _WriteScreenState extends State<WriteScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.removeListener(_onTextChanged);
+    _persistDraft(); // flush any unsaved edit so leaving the screen always saves
     _controller.dispose();
     _audioService.stop(); // 🌟 NEW: Stop talking if the user leaves the screen!
     super.dispose();
@@ -311,11 +312,16 @@ class _WriteScreenState extends State<WriteScreen> {
     ),
   );
 
-  _startNewDraftWorkspace();
+  _startNewDraftWorkspace(saveCurrent: false);
 }
 
-  void _startNewDraftWorkspace() {
+  Future<void> _startNewDraftWorkspace({bool saveCurrent = true}) async {
     _controller.removeListener(_onTextChanged);
+    if (saveCurrent) {
+      // Save whatever is currently in the notebook before wiping it, so
+      // tapping "New Blank Page" behaves the same as navigating away.
+      await _persistDraft();
+    }
     _controller.clear();
     setState(() {
       _currentDraftId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -435,7 +441,7 @@ class _WriteScreenState extends State<WriteScreen> {
           IconButton(
             icon: Icon(Icons.note_add_outlined, color: AppColors.paper.withOpacity(0.7)),
             tooltip: 'New Blank Page',
-            onPressed: _startNewDraftWorkspace,
+            onPressed: () => _startNewDraftWorkspace(),
           ),
         ],
       ),

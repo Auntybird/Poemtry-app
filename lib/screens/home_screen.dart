@@ -29,7 +29,8 @@ class HomeScreen extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Column(
+              child: SingleChildScrollView(
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Align(
@@ -84,7 +85,7 @@ class HomeScreen extends StatelessWidget {
                       MaterialPageRoute(builder: (_) => const WriteScreen()),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 32),
                   Row(
                     children: [
                       Expanded(
@@ -110,6 +111,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                 ],
+              ),
               ),
             ),
           ],

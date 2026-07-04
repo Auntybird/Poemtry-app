@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="poem_app"
+        android:label="Prosody Eng."
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

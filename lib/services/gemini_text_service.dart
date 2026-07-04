@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/persona.dart';
+import '../utils/gemini_rate_limit.dart';
 import 'storage_service.dart';
 
 class WritingGuidance {
@@ -62,6 +63,7 @@ class GeminiTextService {
 
     final modelNames = resolveModelCandidates(await _storage.getGeminiModel());
     Object? lastError;
+    String? lastRateLimitBody;
 
     for (final modelName in modelNames) {
       try {
@@ -100,11 +102,20 @@ class GeminiTextService {
         }
 
         final errorBody = response.body;
-        lastError = 'Model $modelName failed: $errorBody';
+        lastError = 'Model $modelName failed (${response.statusCode}): $errorBody';
+        if (response.statusCode == 429) {
+          lastRateLimitBody = errorBody;
+        }
 
+        // Retry with the next candidate model on: bad request/model-not-found
+        // (400/404/422) OR rate-limit/quota exhaustion (429). Without 429 here,
+        // a quota hit on the first model never falls back to the lite model and
+        // just surfaces as "quota exceeded" even though a usable fallback model
+        // remains untried.
         if (response.statusCode == 400 ||
             response.statusCode == 404 ||
-            response.statusCode == 422) {
+            response.statusCode == 422 ||
+            response.statusCode == 429) {
           if (modelName != modelNames.last) {
             continue;
           }
@@ -119,6 +130,9 @@ class GeminiTextService {
       }
     }
 
+    if (lastRateLimitBody != null) {
+      throw Exception(formatRateLimitMessage(parseRateLimitInfo(lastRateLimitBody)));
+    }
     throw Exception('Gemini request failed: $lastError');
   }
 
