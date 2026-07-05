@@ -64,6 +64,7 @@ class GeminiTextService {
     final modelNames = resolveModelCandidates(await _storage.getGeminiModel());
     Object? lastError;
     String? lastRateLimitBody;
+    bool sawOverloadedModel = false;
 
     for (final modelName in modelNames) {
       try {
@@ -106,16 +107,20 @@ class GeminiTextService {
         if (response.statusCode == 429) {
           lastRateLimitBody = errorBody;
         }
+        if (response.statusCode == 503) {
+          sawOverloadedModel = true;
+        }
 
         // Retry with the next candidate model on: bad request/model-not-found
-        // (400/404/422) OR rate-limit/quota exhaustion (429). Without 429 here,
-        // a quota hit on the first model never falls back to the lite model and
-        // just surfaces as "quota exceeded" even though a usable fallback model
-        // remains untried.
+        // (400/404/422), rate-limit/quota exhaustion (429), or the model being
+        // temporarily overloaded on Google's side (503). Without these, a
+        // failure on the first model never falls back to the second one even
+        // though it might succeed there.
         if (response.statusCode == 400 ||
             response.statusCode == 404 ||
             response.statusCode == 422 ||
-            response.statusCode == 429) {
+            response.statusCode == 429 ||
+            response.statusCode == 503) {
           if (modelName != modelNames.last) {
             continue;
           }
@@ -132,6 +137,10 @@ class GeminiTextService {
 
     if (lastRateLimitBody != null) {
       throw Exception(formatRateLimitMessage(parseRateLimitInfo(lastRateLimitBody)));
+    }
+    if (sawOverloadedModel) {
+      throw Exception(
+          'The AI service is temporarily overloaded on Google\'s side (not your quota). Please try again in a minute or two.');
     }
     throw Exception('Gemini request failed: $lastError');
   }

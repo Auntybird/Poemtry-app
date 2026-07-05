@@ -126,22 +126,31 @@ Prompt one here|||Prompt two here|||Prompt three here
       // Attempt generation with preferred model
       return await _executeAudioRequest(audioFilePath, persona, apiKey, targetModel);
     } catch (e) {
-      // 🌟 SMART FALLBACK: If rate limited and we aren't already using lite, try lite.
-      if (e is GeminiRateLimitException && targetModel != 'gemini-2.5-flash-lite') {
+      final isRetryable = e is GeminiRateLimitException || e is GeminiOverloadedException;
+      // 🌟 SMART FALLBACK: If rate limited or overloaded, and we aren't already using lite, try lite.
+      if (isRetryable && targetModel != 'gemini-2.5-flash-lite') {
         try {
           return await _executeAudioRequest(audioFilePath, persona, apiKey, 'gemini-2.5-flash-lite');
         } catch (fallbackError) {
-          // Prefer info from whichever error actually carries a parseable body.
-          final infoSource = fallbackError is GeminiRateLimitException
-              ? fallbackError.responseBody
-              : e.responseBody;
-          throw Exception(formatRateLimitMessage(parseRateLimitInfo(infoSource)));
+          throw Exception(_describeFailure(fallbackError, e));
         }
-      } else if (e is GeminiRateLimitException) {
-        throw Exception(formatRateLimitMessage(parseRateLimitInfo(e.responseBody)));
+      } else if (isRetryable) {
+        throw Exception(_describeFailure(e, e));
       }
       rethrow;
     }
+  }
+
+  /// Builds a friendly message from whichever error (fallback attempt or
+  /// original) actually carries useful info, preferring a parseable
+  /// rate-limit body over a generic overload message.
+  String _describeFailure(Object primary, Object original) {
+    for (final err in [primary, original]) {
+      if (err is GeminiRateLimitException) {
+        return formatRateLimitMessage(parseRateLimitInfo(err.responseBody));
+      }
+    }
+    return 'The AI service is temporarily overloaded on Google\'s side (not your quota). Please try again in a minute or two.';
   }
 
   Future<PoemResult> _executeAudioRequest(String audioFilePath, Persona persona, String apiKey, String modelName) async {
@@ -195,6 +204,8 @@ Respond ONLY with raw JSON, no markdown fences, no extra commentary, in exactly 
 
     if (response.statusCode == 429) {
       throw GeminiRateLimitException(response.body);
+    } else if (response.statusCode == 503) {
+      throw const GeminiOverloadedException();
     } else if (response.statusCode != 200) {
       throw Exception('The winds of inspiration failed us (Error ${response.statusCode}). Please try again later.');
     }

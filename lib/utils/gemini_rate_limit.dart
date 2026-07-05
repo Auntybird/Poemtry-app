@@ -13,6 +13,14 @@ class GeminiRateLimitException implements Exception {
   String toString() => 'Rate Limit';
 }
 
+/// Thrown when Gemini returns HTTP 503, meaning the model is temporarily
+/// overloaded on Google's side — unrelated to the caller's quota or key.
+class GeminiOverloadedException implements Exception {
+  const GeminiOverloadedException();
+  @override
+  String toString() => 'Model Overloaded';
+}
+
 class RateLimitInfo {
   /// Exact wait time Google suggests, when it tells us (usually only for
   /// short per-minute/per-second limits, not daily quota exhaustion).
