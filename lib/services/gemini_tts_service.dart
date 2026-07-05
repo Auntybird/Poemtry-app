@@ -10,70 +10,107 @@ import 'storage_service.dart';
 /// "Charon") — this app does not clone or impersonate any real person's
 /// voice.
 ///
-/// This is a "best effort, free-tier" feature: it returns null on ANY
-/// failure (no key, network issue, rate limit, quota exhausted, or the
-/// preview model changing/disappearing), so callers should always have a
-/// guaranteed-free fallback (on-device TTS) ready to go.
+/// This is a "best effort, free-tier" feature: [synthesizeSpeech] returns
+/// null on ANY failure (no key, network issue, rate limit, quota exhausted,
+/// or a preview model changing/disappearing), so callers should always have
+/// a guaranteed-free fallback (on-device TTS) ready to go. [lastFailureReason]
+/// is set on failure purely for optional debugging/UI messaging — it's not
+/// required for the fallback logic to work.
 class GeminiTtsService {
   final StorageService _storage = StorageService();
 
-  // Preview model as of mid-2026. If Google renames/retires this, add the
-  // new name here — resolveModelCandidates-style fallback isn't used since
-  // TTS-capable models are less interchangeable than text models.
-  static const String _model = 'gemini-2.5-flash-preview-tts';
+  // Google's preview TTS models get renamed/retired periodically (the same
+  // thing happened to gemini-2.0-flash for text generation). We try the
+  // newest known name first, then fall back to older ones, so a rename
+  // doesn't silently break this feature again.
+  static const List<String> _modelCandidates = [
+    'gemini-3.1-flash-tts-preview',
+    'gemini-2.5-flash-preview-tts',
+  ];
+
+  /// Human-readable reason the last synthesizeSpeech() call failed, or null
+  /// if it succeeded / hasn't been called yet. Useful for surfacing a
+  /// message to the user instead of a silent, confusing fallback.
+  String? lastFailureReason;
 
   /// Returns raw 16-bit mono PCM audio at 24kHz, or null if synthesis
   /// failed for any reason. Never throws.
   Future<Uint8List?> synthesizeSpeech(String text, {required String voiceName}) async {
-    try {
-      final apiKey = await _storage.getApiKey();
-      if (apiKey == null || apiKey.isEmpty) return null;
+    lastFailureReason = null;
 
-      final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$apiKey',
-      );
-
-      final response = await http.post(
-        uri,
-        headers: {'content-type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'role': 'user',
-              'parts': [
-                {'text': text},
-              ],
-            },
-          ],
-          'generationConfig': {
-            'responseModalities': ['AUDIO'],
-            'speechConfig': {
-              'voiceConfig': {
-                'prebuiltVoiceConfig': {'voiceName': voiceName},
-              },
-            },
-          },
-        }),
-      );
-
-      if (response.statusCode != 200) return null;
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final candidates = data['candidates'] as List?;
-      if (candidates == null || candidates.isEmpty) return null;
-
-      final parts = candidates[0]['content']?['parts'] as List?;
-      if (parts == null || parts.isEmpty) return null;
-
-      final audioData = parts[0]['inlineData']?['data'] as String?;
-      if (audioData == null) return null;
-
-      return base64Decode(audioData);
-    } catch (_) {
-      // Any failure (network, parsing, rate limit, etc.) — caller falls
-      // back to on-device TTS. This service never surfaces an error itself.
+    final apiKey = await _storage.getApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      lastFailureReason = 'No Gemini API key set.';
       return null;
     }
+
+    Object? lastError;
+
+    for (final model in _modelCandidates) {
+      try {
+        final uri = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey',
+        );
+
+        final response = await http.post(
+          uri,
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({
+            'contents': [
+              {
+                'role': 'user',
+                'parts': [
+                  {'text': text},
+                ],
+              },
+            ],
+            'generationConfig': {
+              'responseModalities': ['AUDIO'],
+              'speechConfig': {
+                'voiceConfig': {
+                  'prebuiltVoiceConfig': {'voiceName': voiceName},
+                },
+              },
+            },
+          }),
+        );
+
+        if (response.statusCode != 200) {
+          lastError = 'Model $model failed (${response.statusCode}): ${response.body}';
+          // 404 usually means this model name no longer exists — try the
+          // next candidate. Other errors (429/503/etc.) also worth trying
+          // the next candidate rather than giving up immediately.
+          continue;
+        }
+
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final candidates = data['candidates'] as List?;
+        if (candidates == null || candidates.isEmpty) {
+          lastError = 'Model $model returned no candidates.';
+          continue;
+        }
+
+        final parts = candidates[0]['content']?['parts'] as List?;
+        if (parts == null || parts.isEmpty) {
+          lastError = 'Model $model returned no audio parts.';
+          continue;
+        }
+
+        final audioData = parts[0]['inlineData']?['data'] as String?;
+        if (audioData == null) {
+          lastError = 'Model $model returned no inline audio data.';
+          continue;
+        }
+
+        return base64Decode(audioData);
+      } catch (e) {
+        lastError = e;
+        continue;
+      }
+    }
+
+    lastFailureReason = lastError?.toString() ?? 'Unknown TTS failure.';
+    return null;
   }
 
   /// Gemini returns headerless raw PCM. Standard audio players expect a WAV

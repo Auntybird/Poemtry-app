@@ -18,10 +18,13 @@ class AudioMentorService {
   // 🌟 Fired when the on-device voice is missing for the needed language
   Function(String message)? onVoiceUnavailable;
 
-  // 🌟 Incremented on every play()/stop() call. A play() request checks this
-  // after each await — if it's changed (a newer play/stop call came in while
-  // we were waiting on the network or the engine), we abandon this request
-  // instead of playing stale/late audio on top of whatever's current.
+  // 🌟 Fired whenever AI Voice is enabled but falls back to the device voice
+  // for this playback — with the real reason, so it's never a silent,
+  // confusing "why didn't it change" situation.
+  Function(String reason)? onAiVoiceFallback;
+
+  // 🌟 Incremented on every play()/stop() call. See play() for how this is
+  // used to discard stale/late results.
   int _playToken = 0;
 
   AudioMentorService() {
@@ -73,29 +76,22 @@ class AudioMentorService {
 
   /// Always fully stops whatever's currently playing (on both engines) and
   /// starts fresh — so calling play() with new text while something else is
-  /// already playing correctly switches to the new text instead of doing
-  /// nothing (which is what the old togglePlayback-only approach did).
+  /// already playing correctly switches to the new text.
   Future<void> play(String text) async {
     final int myToken = ++_playToken;
 
-    // Stop both engines unconditionally before starting anything new, so
-    // switching sources never results in overlapping audio.
     await _tts.stop();
     await _player.stop();
-    if (myToken != _playToken) return; // superseded while stopping
+    if (myToken != _playToken) return;
 
     final useAiVoice = await _storage.getUseAiVoice();
-    if (myToken != _playToken) return; // superseded while reading prefs
+    if (myToken != _playToken) return;
 
     if (useAiVoice) {
       final voiceName = await _storage.getAiVoiceName();
       if (myToken != _playToken) return;
 
       final pcm = await _geminiTts.synthesizeSpeech(text, voiceName: voiceName);
-      // This is the critical check: if the user tapped stop, tapped a
-      // different play button, or changed the voice while this network
-      // call was in flight, myToken no longer matches _playToken — so we
-      // discard this result instead of playing it late.
       if (myToken != _playToken) return;
 
       if (pcm != null) {
@@ -104,9 +100,17 @@ class AudioMentorService {
           if (myToken != _playToken) return;
           await _player.play(BytesSource(wavBytes));
           return;
-        } catch (_) {
+        } catch (e) {
+          if (myToken != _playToken) return;
+          onAiVoiceFallback?.call('AI voice playback failed ($e). Using device voice instead.');
           // fall through to on-device below
         }
+      } else {
+        // Synthesis itself failed — surface why, then fall back.
+        if (myToken != _playToken) return;
+        onAiVoiceFallback?.call(
+          'AI voice unavailable right now (${_geminiTts.lastFailureReason ?? 'unknown reason'}). Using device voice instead.',
+        );
       }
     }
 
@@ -153,7 +157,7 @@ class AudioMentorService {
   }
 
   Future<void> stop() async {
-    _playToken++; // invalidate any in-flight play() request immediately
+    _playToken++;
     await _tts.stop();
     await _player.stop();
     isPlaying = false;
