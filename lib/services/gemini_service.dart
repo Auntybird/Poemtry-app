@@ -11,8 +11,8 @@ import 'storage_service.dart';
 
 class GeminiPoemService {
   static const List<String> _supportedModels = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
   ];
 
   final StorageService _storage = StorageService();
@@ -127,9 +127,9 @@ Prompt one here|||Prompt two here|||Prompt three here
       return await _executeAudioRequest(audioFilePath, persona, apiKey, targetModel);
     } catch (e) {
       // 🌟 SMART FALLBACK: If rate limited and we aren't already using lite, try lite.
-      if (e is GeminiRateLimitException && targetModel != 'gemini-2.0-flash-lite') {
+      if (e is GeminiRateLimitException && targetModel != 'gemini-2.5-flash-lite') {
         try {
-          return await _executeAudioRequest(audioFilePath, persona, apiKey, 'gemini-2.0-flash-lite');
+          return await _executeAudioRequest(audioFilePath, persona, apiKey, 'gemini-2.5-flash-lite');
         } catch (fallbackError) {
           // Prefer info from whichever error actually carries a parseable body.
           final infoSource = fallbackError is GeminiRateLimitException

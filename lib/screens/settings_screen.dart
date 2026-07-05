@@ -25,8 +25,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _temperature = StorageService.defaultTemperature;
 
   final List<Map<String, String>> _availableModels = [
-    {'value': 'gemini-2.0-flash-lite', 'label': '2.0 Flash Lite (Daily Default)'},
-    {'value': 'gemini-2.0-flash', 'label': '2.0 Flash (Fast & Fluid)'},
+    {'value': 'gemini-2.5-flash-lite', 'label': '2.5 Flash Lite (Daily Default)'},
+    {'value': 'gemini-2.5-flash', 'label': '2.5 Flash (Fast & Fluid)'},
   ];
 
   @override

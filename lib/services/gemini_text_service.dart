@@ -29,8 +29,8 @@ class PoemAnalysis {
 
 class GeminiTextService {
   static const List<String> supportedModels = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
   ];
 
   final StorageService _storage = StorageService();

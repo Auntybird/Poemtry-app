@@ -13,7 +13,7 @@ class StorageService {
   static const _temperaturePref = 'gemini_temperature';
 
   // 🌟 Default is now 2.0-flash-lite for better daily inspiration limits
-  static const String defaultModel = 'gemini-2.0-flash-lite';
+  static const String defaultModel = 'gemini-2.5-flash-lite';
   static const double defaultTemperature = 0.7;
 
   // --- Gemini API Key ---
