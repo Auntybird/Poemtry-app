@@ -127,11 +127,18 @@ class _PoemScreenState extends State<PoemScreen> {
                       size: 32,
                     ),
                     onPressed: () {
+                      final wasPlayingThis = _isPlayingPoem;
                       setState(() {
-                        _isPlayingPoem = !_isPlayingPoem;
+                        _isPlayingPoem = !wasPlayingThis;
                         _isPlayingGuidance = false;
                       });
-                      _audioService.togglePlayback(entry.poem);
+                      if (wasPlayingThis) {
+                        _audioService.stop();
+                      } else {
+                        // play() always stops any other audio first, so this
+                        // correctly switches even if guidance was playing.
+                        _audioService.play(entry.poem);
+                      }
                     },
                   ),
                 ],
@@ -177,11 +184,16 @@ class _PoemScreenState extends State<PoemScreen> {
                         size: 20,
                       ),
                       onPressed: () {
+                        final wasPlayingThis = _isPlayingGuidance;
                         setState(() {
-                          _isPlayingGuidance = !_isPlayingGuidance;
+                          _isPlayingGuidance = !wasPlayingThis;
                           _isPlayingPoem = false;
                         });
-                        _audioService.togglePlayback(entry.explanation);
+                        if (wasPlayingThis) {
+                          _audioService.stop();
+                        } else {
+                          _audioService.play(entry.explanation);
+                        }
                       },
                     ),
                   ],
