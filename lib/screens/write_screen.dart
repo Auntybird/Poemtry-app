@@ -551,12 +551,15 @@ class _AnalysisCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.rule_rounded, size: 16, color: AppColors.gold.withOpacity(0.9)),
               const SizedBox(width: 6),
-              Text(
-                'Structural Analysis: ${analysis.structureType}',
-                style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+              Expanded(
+                child: Text(
+                  'Structural Analysis: ${analysis.structureType}',
+                  style: TextStyle(color: AppColors.gold.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                ),
               ),
             ],
           ),

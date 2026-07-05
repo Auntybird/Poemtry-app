@@ -167,6 +167,9 @@ Philosophy and imagery to draw on: ${persona.philosophy}
 
 Step 1: Transcribe what the speaker says in the audio, in its original language.
 Step 2: Detect the language of the transcript.
+
+CRITICAL LANGUAGE RULE: The "explanation" and "background" fields MUST be written entirely in the same language as the transcript. If the transcript is in Chinese, write both entirely in Chinese. If the transcript is in English, write both entirely in English. Never default to English when the transcript is in another language. Only the "poem" field follows the form rules below (a classical Chinese poem stays in Chinese; a classical English poem stays in English — which will naturally match the transcript's language anyway).
+
 Step 3: Write a poem suited to their situation, strictly in that persona's philosophy and voice.
   - If Chinese: a classical Jueju (绝句) or Ci (词) with proper rhyme, plus a modern-Chinese explanation of the poem's meaning and how it reflects this persona's philosophy.
   - If English: a classical English quatrain or short sonnet (iambic meter), plus a modern-English explanation of the poem's meaning and how it reflects this persona's philosophy.

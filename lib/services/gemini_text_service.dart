@@ -154,6 +154,8 @@ Philosophy and imagery available to this school: ${persona.philosophy}
 
 Detect the language of their draft.
 
+CRITICAL LANGUAGE RULE: Both "guidance" and "background" MUST be written entirely in the same language as their draft. If the draft is in Chinese, respond entirely in Chinese. If the draft is in English, respond entirely in English. Never default to English.
+
 CRITICAL RULE: Do NOT write the poem for them. Do NOT include any finished poem, verse, or line you composed yourself anywhere in your response. This is a coaching exercise — every line of the final piece must be written by the person themselves.
 
 Step 1 (guidance): Give specific, actionable coaching in 3-5 sentences, in the same language as their draft: what's working, where the imagery or structure could align more closely with this persona's philosophy, and one or two concrete techniques to try. Optionally end with one guiding question. Never supply replacement lines.
@@ -183,6 +185,10 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
     const systemPrompt = '''
 You are a strict master of classical Chinese poetry form and structure (Gushi, Jueju, Lushi) and traditional English meter (Sonnets, Quatrains, Iambic Pentameter).
 Analyze the provided poem strictly for its structural integrity. Do NOT provide creative coaching.
+
+Step 0: Detect the language of the poem draft.
+
+CRITICAL LANGUAGE RULE: Every text field in your JSON response (structureType, tonalFeedback, rhymeFeedback, and each entry in ruleBreaks) MUST be written in the same language as the poem draft. If the draft is in Chinese, write your entire analysis in Chinese (classical form names may stay in Chinese, e.g. "五言古诗", with an English gloss in parentheses only if it helps clarity). If the draft is in English, write your entire analysis in English. Never default to English when the draft is in another language.
 
 Step 1: Identify the intended classical form based on character/syllable count and line count. If it is modern free verse, state that.
 Step 2: Analyze the Tonal Pattern (Ping Ze / 平仄) for Chinese, or the meter for English. Does it follow traditional rules?
@@ -217,6 +223,10 @@ Respond ONLY as raw JSON, no markdown fences, no extra commentary, in exactly th
     if (responseText.isEmpty) {
       throw Exception('No response from Gemini.');
     }
-    return jsonDecode(responseText) as Map<String, dynamic>;
+    // Gemini sometimes wraps its JSON in ```json ... ``` fences despite being
+    // told not to — strip those before decoding.
+    final cleanText =
+        responseText.replaceAll('```json', '').replaceAll('```', '').trim();
+    return jsonDecode(cleanText) as Map<String, dynamic>;
   }
 }
