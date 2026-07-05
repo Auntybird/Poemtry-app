@@ -1,18 +1,27 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+
+import 'gemini_tts_service.dart';
+import 'storage_service.dart';
 
 class AudioMentorService {
   final FlutterTts _tts = FlutterTts();
+  final AudioPlayer _player = AudioPlayer();
+  final GeminiTtsService _geminiTts = GeminiTtsService();
+  final StorageService _storage = StorageService();
+
   bool isPlaying = false;
 
   // Callback listener to safely reflect status updates back to the UI widgets
   Function(bool)? onStateChanged;
 
-  // 🌟 Fired when the requested voice/language isn't installed on this device,
-  // so the UI can tell the user why nothing played instead of it being silent.
+  // 🌟 Fired when the on-device voice is missing for the needed language
+  // (only relevant when falling back from/to device TTS).
   Function(String message)? onVoiceUnavailable;
 
   AudioMentorService() {
     _initTts();
+    _initPlayer();
   }
 
   Future<void> _initTts() async {
@@ -20,18 +29,27 @@ class AudioMentorService {
     await _tts.setSpeechRate(0.35); // Measured, slow pacing
     await _tts.setPitch(0.85);      // Deeper, traditional timber
 
-    // Engine lifecycle hooks to reset icons and toggle buttons automatically
     _tts.setStartHandler(() {
       isPlaying = true;
       onStateChanged?.call(true);
     });
-
     _tts.setCompletionHandler(() {
       isPlaying = false;
       onStateChanged?.call(false);
     });
-
     _tts.setCancelHandler(() {
+      isPlaying = false;
+      onStateChanged?.call(false);
+    });
+  }
+
+  void _initPlayer() {
+    _player.onPlayerStateChanged.listen((state) {
+      final playing = state == PlayerState.playing;
+      isPlaying = playing;
+      onStateChanged?.call(playing);
+    });
+    _player.onPlayerComplete.listen((_) {
       isPlaying = false;
       onStateChanged?.call(false);
     });
@@ -45,37 +63,56 @@ class AudioMentorService {
     }
   }
 
-  /// Returns true if playback actually started. Callers can check this to
-  /// show a message when it doesn't (e.g. missing voice data on device).
-  Future<bool> play(String text) async {
+  Future<void> play(String text) async {
+    final useAiVoice = await _storage.getUseAiVoice();
+
+    if (useAiVoice) {
+      final voiceName = await _storage.getAiVoiceName();
+      final pcm = await _geminiTts.synthesizeSpeech(text, voiceName: voiceName);
+
+      if (pcm != null) {
+        final wavBytes = _geminiTts.wrapPcmAsWav(pcm);
+        try {
+          await _player.play(BytesSource(wavBytes));
+          return; // Success — done, no need to fall back.
+        } catch (_) {
+          // Playback failed even though synthesis succeeded (rare) — fall
+          // through to on-device TTS below rather than staying silent.
+        }
+      }
+      // Gemini synthesis failed (no key, network, rate limit, quota,
+      // model unavailable, etc.) — fall back to the guaranteed-free
+      // on-device voice below. No error shown; this is expected/normal
+      // for a free-tier-dependent optional feature.
+    }
+
+    await _playOnDevice(text);
+  }
+
+  Future<void> _playOnDevice(String text) async {
     final isChinese = RegExp(r'[\u4e00-\u9fa5]').hasMatch(text);
 
     if (!isChinese) {
       await _tts.setLanguage('en-US');
       await _tts.speak(text);
-      return true;
+      return;
     }
 
-    // 🌟 Cantonese first (zh-HK), since that's the requested voice. Some
-    // devices only have Mandarin (zh-CN) voice data installed though, so we
-    // fall back to that rather than staying silent, and only give up (with
-    // a clear message) if neither is available.
+    // 🌟 Cantonese first (zh-HK), falling back to Mandarin (zh-CN) if that
+    // voice data isn't installed on this device.
     final candidates = ['zh-HK', 'zh-CN'];
 
     for (final langCode in candidates) {
       final available = await _tts.isLanguageAvailable(langCode);
-      // isLanguageAvailable can return a bool or an int (1/0/-1) depending on
-      // platform, so check loosely rather than assuming a bool.
       final isAvailable = available == true || available == 1;
 
       if (isAvailable) {
         await _tts.setLanguage(langCode);
         await _tts.speak(text);
-        return true;
+        return;
       }
     }
 
-    // Neither Cantonese nor Mandarin voice data is installed on this device.
     onVoiceUnavailable?.call(
       'No Chinese voice is installed on this device. Go to your phone\'s '
       'Settings → Text-to-speech (or Languages & input → Text-to-speech '
@@ -83,10 +120,10 @@ class AudioMentorService {
     );
     isPlaying = false;
     onStateChanged?.call(false);
-    return false;
   }
 
   Future<void> stop() async {
     await _tts.stop();
+    await _player.stop();
   }
 }

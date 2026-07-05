@@ -11,10 +11,14 @@ class StorageService {
 
   static const _modelPref = 'gemini_model';
   static const _temperaturePref = 'gemini_temperature';
+  static const _useAiVoicePref = 'use_ai_voice';
+  static const _aiVoiceNamePref = 'ai_voice_name';
 
   // 🌟 Default is now 2.0-flash-lite for better daily inspiration limits
   static const String defaultModel = 'gemini-2.5-flash-lite';
   static const double defaultTemperature = 0.7;
+  static const bool defaultUseAiVoice = false;
+  static const String defaultAiVoiceName = 'Kore';
 
   // --- Gemini API Key ---
 
@@ -49,6 +53,27 @@ class StorageService {
   Future<double> getGeminiTemperature() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_temperaturePref) ?? defaultTemperature;
+  }
+
+  // --- AI Voice (Gemini TTS) Preference ---
+  // Off by default — the app always works with the guaranteed-free
+  // on-device voice; this is an opt-in enhancement that depends on
+  // Gemini's TTS free tier remaining available.
+
+  Future<void> saveAiVoicePrefs({required bool useAiVoice, required String voiceName}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_useAiVoicePref, useAiVoice);
+    await prefs.setString(_aiVoiceNamePref, voiceName);
+  }
+
+  Future<bool> getUseAiVoice() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_useAiVoicePref) ?? defaultUseAiVoice;
+  }
+
+  Future<String> getAiVoiceName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_aiVoiceNamePref) ?? defaultAiVoiceName;
   }
 
   // --- Daily Prompts Cache ---

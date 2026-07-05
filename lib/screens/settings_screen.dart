@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/tts_voices.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -23,6 +24,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _selectedModel = StorageService.defaultModel;
   double _temperature = StorageService.defaultTemperature;
+  bool _useAiVoice = StorageService.defaultUseAiVoice;
+  String _selectedVoiceName = StorageService.defaultAiVoiceName;
 
   final List<Map<String, String>> _availableModels = [
     {'value': 'gemini-2.5-flash-lite', 'label': '2.5 Flash Lite (Daily Default)'},
@@ -39,6 +42,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final apiKey = await _storage.getApiKey();
     final model = await _storage.getGeminiModel();
     final temp = await _storage.getGeminiTemperature();
+    final useAiVoice = await _storage.getUseAiVoice();
+    final voiceName = await _storage.getAiVoiceName();
 
     if (mounted) {
       setState(() {
@@ -52,6 +57,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
         
         _temperature = temp;
+        _useAiVoice = useAiVoice;
+        _selectedVoiceName = ttsVoiceOptions.any((v) => v.voiceName == voiceName)
+            ? voiceName
+            : StorageService.defaultAiVoiceName;
         _isLoading = false;
       });
     }
@@ -70,6 +79,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       model: _selectedModel,
       temperature: _temperature,
     );
+    await _storage.saveAiVoicePrefs(
+      useAiVoice: _useAiVoice,
+      voiceName: _selectedVoiceName,
+    );
 
     setState(() {
       _apiKeyPresent = trimmedKey.isNotEmpty;
@@ -87,6 +100,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       model: StorageService.defaultModel,
       temperature: StorageService.defaultTemperature,
     );
+    await _storage.saveAiVoicePrefs(
+      useAiVoice: StorageService.defaultUseAiVoice,
+      voiceName: StorageService.defaultAiVoiceName,
+    );
 
     _apiKeyController.clear();
 
@@ -94,6 +111,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _apiKeyPresent = false;
       _selectedModel = StorageService.defaultModel;
       _temperature = StorageService.defaultTemperature;
+      _useAiVoice = StorageService.defaultUseAiVoice;
+      _selectedVoiceName = StorageService.defaultAiVoiceName;
     });
   }
 
@@ -307,6 +326,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
+
+              const SizedBox(height: 32),
+
+              Row(
+                children: [
+                  const Text(
+                    'AI Voice',
+                    style: TextStyle(
+                        color: AppColors.paper,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 10),
+                  Switch(
+                    value: _useAiVoice,
+                    activeColor: AppColors.gold,
+                    onChanged: (val) => setState(() => _useAiVoice = val),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Optional: uses Gemini\'s expressive AI voices (free-tier, preview) instead of '
+                'your phone\'s built-in voice. Automatically falls back to your device voice '
+                'if unavailable — this never breaks playback either way.',
+                style: TextStyle(
+                    color: AppColors.paper.withOpacity(0.5), fontSize: 13),
+              ),
+              if (_useAiVoice) ...[
+                const SizedBox(height: 16),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: ttsVoiceOptions.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final option = ttsVoiceOptions[index];
+                    final isSelected = _selectedVoiceName == option.voiceName;
+                    return InkWell(
+                      onTap: () => setState(() => _selectedVoiceName = option.voiceName),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.gold.withOpacity(0.08)
+                              : AppColors.inkSurface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: isSelected ? AppColors.gold : AppColors.inkBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                              color: isSelected
+                                  ? AppColors.gold
+                                  : AppColors.paper.withOpacity(0.4),
+                            ),
+                            const SizedBox(width: 14),
+                            Text(option.label,
+                                style: TextStyle(
+                                    color: isSelected ? AppColors.gold : AppColors.paper,
+                                    fontSize: 14,
+                                    fontWeight:
+                                        isSelected ? FontWeight.w600 : FontWeight.w400)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
 
               const SizedBox(height: 40),
 
