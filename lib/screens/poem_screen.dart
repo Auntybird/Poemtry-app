@@ -40,6 +40,19 @@ class _PoemScreenState extends State<PoemScreen> {
         });
       }
     };
+
+    // 🌟 Surface missing voice-data errors instead of silent failure
+    _audioService.onVoiceUnavailable = (message) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.inkSurfaceLight,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    };
   }
 
   @override
