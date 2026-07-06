@@ -5,6 +5,7 @@ import 'package:record/record.dart';
 
 import '../models/history_entry.dart';
 import '../services/gemini_service.dart';
+import '../services/image_generation_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import 'poem_screen.dart';
@@ -22,6 +23,7 @@ class _SpeakScreenState extends State<SpeakScreen> {
   final _recorder = AudioRecorder();
   final _geminiService = GeminiPoemService();
   final _storage = StorageService();
+  final _imageService = ImageGenerationService();
 
   _AppState _state = _AppState.idle;
   String? _recordingPath;
@@ -74,6 +76,10 @@ class _SpeakScreenState extends State<SpeakScreen> {
     try {
       final result = await _geminiService.generateFromAudio(path ?? _recordingPath!);
 
+      // 🌟 Free, local, instant art seed — no network/API cost (see
+      // ImageGenerationService for details).
+      final imageUrl = await _imageService.generateShanshuiPainting(result.poem);
+
       final entry = HistoryEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         timestamp: DateTime.now(),
@@ -84,6 +90,7 @@ class _SpeakScreenState extends State<SpeakScreen> {
         explanation: result.explanation,
         background: result.background, // Added field
         type: 'voice',
+        imageUrl: imageUrl,
       );
       await _storage.addHistoryEntry(entry);
 
