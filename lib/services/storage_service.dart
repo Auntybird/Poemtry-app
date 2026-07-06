@@ -169,6 +169,30 @@ class StorageService {
     await prefs.remove(_historyPref);
   }
 
+  /// One-time (but safe-to-repeat) migration: any history entry saved before
+  /// the Shan Shui art feature existed — or from when it silently failed —
+  /// has imageUrl == null. This backfills a deterministic local art seed for
+  /// those entries, same as new entries get. Idempotent: entries that
+  /// already have an imageUrl are left untouched, so this can be called on
+  /// every app/history load without doing repeated work or overwriting
+  /// anything.
+  Future<void> backfillMissingShanshuiArt() async {
+    final list = await getHistory();
+    var changed = false;
+
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].imageUrl == null || list[i].imageUrl!.isEmpty) {
+        final seed = list[i].poem.hashCode;
+        list[i] = list[i].copyWith(imageUrl: 'local-art:$seed');
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await _saveList(list);
+    }
+  }
+
   Future<void> _saveList(List<HistoryEntry> list) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(

@@ -29,6 +29,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _load() async {
+    // 🌟 Backfill Shan Shui art for any older entries that predate the
+    // feature (or hit the old broken image API) — safe to call every time.
+    await _storage.backfillMissingShanshuiArt();
     final entries = await _storage.getHistory();
     setState(() {
       _allEntries = entries;
