@@ -6,6 +6,7 @@ import '../services/storage_service.dart';
 import '../services/audio_mentor_service.dart'; // 🌟 Added
 import '../theme/app_theme.dart';
 import '../widgets/poem_export_dialog.dart';
+import '../widgets/shanshui_painter.dart';
 
 class PoemScreen extends StatefulWidget {
   final HistoryEntry entry;
@@ -17,6 +18,14 @@ class PoemScreen extends StatefulWidget {
 }
 
 class _PoemScreenState extends State<PoemScreen> {
+  /// Parses the "local-art:12345" descriptor produced by
+  /// ImageGenerationService into a seed int for ShanshuiArt, or null if
+  /// there's no image (or it's some other/legacy format).
+  int? _shanshuiSeed(String? imageUrl) {
+    if (imageUrl == null || !imageUrl.startsWith('local-art:')) return null;
+    return int.tryParse(imageUrl.substring('local-art:'.length));
+  }
+
   final _storage = StorageService();
   final _audioService = AudioMentorService(); // 🌟 Added
   
@@ -158,6 +167,13 @@ class _PoemScreenState extends State<PoemScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              if (_shanshuiSeed(entry.imageUrl) != null) ...[
+                ShanshuiArt(
+                  seed: _shanshuiSeed(entry.imageUrl)!,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                const SizedBox(height: 20),
+              ],
               Text(
                 entry.poem, //
                 style: const TextStyle(
