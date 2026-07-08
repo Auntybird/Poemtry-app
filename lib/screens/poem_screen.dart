@@ -62,20 +62,6 @@ class _PoemScreenState extends State<PoemScreen> {
         );
       }
     };
-
-    // 🌟 Surface AI Voice failures/fallbacks so "why didn't it change" is
-    // never a silent mystery — shows the real reason from Gemini.
-    _audioService.onAiVoiceFallback = (reason) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(reason),
-            backgroundColor: AppColors.inkSurfaceLight,
-            duration: const Duration(seconds: 6),
-          ),
-        );
-      }
-    };
   }
 
   @override
